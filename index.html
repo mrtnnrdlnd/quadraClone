@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <title>JS Quadra Clone - Modular</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="game-wrapper">
+    <div class="next-container">
+      <canvas id="nextCanvas" width="240" height="60"></canvas>
+    </div>
+
+    <div class="quadra-layout">
+      <div class="side-panel">
+        <div class="stat-row"><canvas id="prev-O" class="mini-canvas"></canvas><div class="retro-box" id="count-O">0</div></div>
+        <div class="stat-row"><canvas id="prev-S" class="mini-canvas"></canvas><div class="retro-box" id="count-S">0</div></div>
+        <div class="stat-row"><canvas id="prev-Z" class="mini-canvas"></canvas><div class="retro-box" id="count-Z">0</div></div>
+        <div class="stat-row"><canvas id="prev-L" class="mini-canvas"></canvas><div class="retro-box" id="count-L">0</div></div>
+        <div class="stat-row"><canvas id="prev-J" class="mini-canvas"></canvas><div class="retro-box" id="count-J">0</div></div>
+        <div class="stat-row"><canvas id="prev-I" class="mini-canvas"></canvas><div class="retro-box" id="count-I">0</div></div>
+        <div class="stat-row"><canvas id="prev-T" class="mini-canvas"></canvas><div class="retro-box" id="count-T">0</div></div>
+        <div class="stat-row total-row"><span class="stat-label">Total:</span><div class="retro-box" id="count-Total">0</div></div>
+      </div>
+
+      <div class="board-container">
+        <canvas id="board" width="240" height="480"></canvas>
+      </div>
+
+      <div class="side-panel" style="gap: 4px;">
+        <div class="stat-row"><span class="stat-label">Single</span><div class="retro-box" id="lines-1">0</div></div>
+        <div class="stat-row"><span class="stat-label">Double</span><div class="retro-box" id="lines-2">0</div></div>
+        <div class="stat-row"><span class="stat-label">Triple</span><div class="retro-box" id="lines-3">0</div></div>
+        <div class="stat-row"><span class="stat-label">Quad</span><div class="retro-box" id="lines-4">0</div></div>
+        <div class="stat-row"><span class="stat-label">5-lines</span><div class="retro-box" id="lines-5">0</div></div>
+        <div class="stat-row"><span class="stat-label">6-lines</span><div class="retro-box" id="lines-6">0</div></div>
+        <div class="stat-row"><span class="stat-label">7-lines</span><div class="retro-box" id="lines-7">0</div></div>
+        <div class="stat-row"><span class="stat-label">8-lines</span><div class="retro-box" id="lines-8">0</div></div>
+        <div class="stat-row"><span class="stat-label">9-lines</span><div class="retro-box" id="lines-9">0</div></div>
+        <div class="stat-row"><span class="stat-label">10-lines</span><div class="retro-box" id="lines-10">0</div></div>
+        <div class="stat-row"><span class="stat-label">11-lines</span><div class="retro-box" id="lines-11">0</div></div>
+        <div class="stat-row"><span class="stat-label">12-lines</span><div class="retro-box" id="lines-12">0</div></div>
+        <div class="stat-row"><span class="stat-label">13-lines</span><div class="retro-box" id="lines-13">0</div></div>
+        <div class="stat-row"><span class="stat-label">14-lines</span><div class="retro-box" id="lines-14">0</div></div>
+        <div class="stat-row"><span class="stat-label">More!</span><div class="retro-box" id="lines-more">0</div></div>
+        <div class="stat-row total-row" style="padding-top: 5px;"><span class="stat-label">Total:</span><div class="retro-box" id="lines-Total">0</div></div>
+      </div>
+    </div>
+
+    <div class="bottom-stats">
+      <div class="stat-row"><span class="stat-label">Score:</span><div class="retro-box" id="score">0</div></div>
+      <div class="stat-row"><span class="stat-label">Lines:</span><div class="retro-box" id="lines">0</div></div>
+      <div class="stat-row"><span class="stat-label">Level:</span><div class="retro-box" id="level">1</div></div>
+    </div>
+  </div>
+
+  <button class="settings-btn" onclick="game.toggleSettings()">Settings</button>
+
+  <div id="settingsModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h2 style="font-family: 'Macondo', Georgia, serif;">OPTIONS</h2>
+      <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 15px;">
+        <div class="setting-label"><span>DAS (ms)</span><span id="valDAS">150</span></div>
+        <input type="range" id="rangeDAS" min="50" max="300" value="150" step="10" oninput="document.getElementById('valDAS').innerText=this.value">
+        <div class="setting-label"><span>ARR (ms)</span><span id="valARR">30</span></div>
+        <input type="range" id="rangeARR" min="10" max="150" value="30" step="5" oninput="document.getElementById('valARR').innerText=this.value">
+        <div class="setting-label"><span>Base Gravity</span><span id="valGravity">1</span></div>
+        <input type="range" id="rangeGravity" min="1" max="10" value="1" oninput="document.getElementById('valGravity').innerText=this.value">
+        <div class="setting-label"><span>Soft Drop (x)</span><span id="valSoftDrop">20</span></div>
+        <input type="range" id="rangeSoftDrop" min="2" max="50" value="20" oninput="document.getElementById('valSoftDrop').innerText=this.value">
+      </div>
+      <div id="controlsList"></div>
+      <button class="settings-btn" style="position:relative; right:0; bottom:0; margin-top:20px;" onclick="game.toggleSettings()">Save & Close</button>
+    </div>
+  </div>
+
+  <div id="gameOverScreen" class="modal-overlay hidden">
+    <div class="results-title">Results</div>
+    <div style="display: flex; gap: 30px; margin-bottom: 20px;">
+      <div class="results-panel">
+        <div class="results-col">
+          <div class="results-header">Points per min.</div>
+          <div class="results-box" id="go-ppm">0</div>
+        </div>
+        <div class="results-col">
+          <div class="results-header">Blocks per min.</div>
+          <div class="results-box" id="go-bpm">0</div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; font-family: Courier New; color: #ccc;">
+      <div>Score: <span id="go-score" style="color:#fff;">0</span></div>
+      <div>| Lines: <span id="go-lines" style="color:#fff;">0</span></div>
+      <div>| Level: <span id="go-level" style="color:#fff;">0</span></div>
+      <div>| Time: <span id="go-time" style="color:#fff;">00:00</span></div>
+    </div>
+    <button class="restart-btn" onclick="location.reload()">Restart Game</button>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
