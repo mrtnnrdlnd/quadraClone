@@ -20,13 +20,11 @@ class Renderer {
 
   drawMiniPieces() {
     const bs = CONFIG.BLOCK_SIZE;
-
     Object.keys(CONFIG.BASE_SHAPES).forEach(type => {
       const cvs = document.getElementById(`prev-${type}`);
       if (!cvs) return;
       const mCtx = cvs.getContext('2d');
       const matrix = CONFIG.BASE_SHAPES[type];
-
       let minR = matrix.length, maxR = 0, minC = matrix[0].length, maxC = 0;
       for (let r = 0; r < matrix.length; r++) {
         for (let c = 0; c < matrix[r].length; c++) {
@@ -36,10 +34,8 @@ class Renderer {
           }
         }
       }
-
       cvs.width = (maxC - minC + 1) * bs;
       cvs.height = (maxR - minR + 1) * bs;
-
       for (let r = 0; r < matrix.length; r++) {
         for (let c = 0; c < matrix[r].length; c++) {
           if (matrix[r][c] !== 0) {
@@ -101,14 +97,22 @@ class Renderer {
       let gy = current.y;
       while (!engine.checkCollision(current.x, gy + 1, current.rot, current.type)) gy++;
       const matrix = PRECALC_ROTATIONS[current.type][current.rot];
+
+      const isBlocked = engine.checkCollision(current.x, current.y + 1, current.rot, current.type);
+      const smoothOffset = isBlocked ? 0 : Math.min(1, state.dropCounter / engine.getDropInterval());
+
       for(let g = 0; g < 2; g++) {
         const isGhost = g === 0;
-        const yOffset = isGhost ? gy : current.y;
+
+        // Avrunda helhetspositionen för att garantera att rutorna snäpper på exakta pixlar
+        const pixelYOffset = isGhost ? gy * BS : Math.round((current.y + smoothOffset) * BS);
         const color = isGhost ? CONFIG.COLORS.GHOST : CONFIG.COLORS[current.type];
+
         for (let r = 0; r < matrix.length; r++) {
           for (let c = 0; c < matrix[r].length; c++) {
-            if (matrix[r][c] !== 0 && yOffset + r >= 0) {
-              this.drawBlock(this.ctx, (current.x + c) * BS, (yOffset + r) * BS, BS, color, {
+            const logicalY = (isGhost ? gy : current.y) + r;
+            if (matrix[r][c] !== 0 && logicalY >= 0) {
+              this.drawBlock(this.ctx, (current.x + c) * BS, pixelYOffset + r * BS, BS, color, {
                 top: r===0 || matrix[r-1][c]===0, bottom: r===matrix.length-1 || matrix[r+1][c]===0,
                 left: c===0 || matrix[r][c-1]===0, right: c===matrix[r].length-1 || matrix[r][c+1]===0
               });
@@ -118,15 +122,12 @@ class Renderer {
       }
     }
 
-    // Nästa block ritas från vänster till höger (index 0 = störst, längst till vänster)
     this.nextCtx.clearRect(0, 0, 240, 60);
     const sizes = [18, 11, 5];
     const xCenters = [45, 115, 175];
-
     state.nextQueue.forEach((piece, index) => {
       const matrix = PRECALC_ROTATIONS[piece.type][0];
       const bSize = sizes[index];
-
       let minR = matrix.length, maxR = 0, minC = matrix[0].length, maxC = 0;
       for (let r = 0; r < matrix.length; r++) {
         for (let c = 0; c < matrix[r].length; c++) {
@@ -136,13 +137,10 @@ class Renderer {
           }
         }
       }
-
       const pieceWidth = (maxC - minC + 1) * bSize;
       const pieceHeight = (maxR - minR + 1) * bSize;
-
       const ox = xCenters[index] - pieceWidth / 2;
       const oy = (60 - pieceHeight) / 2;
-
       for (let r = 0; r < matrix.length; r++) {
         for (let c = 0; c < matrix[r].length; c++) {
           if (matrix[r][c] !== 0) {
