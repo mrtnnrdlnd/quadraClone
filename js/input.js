@@ -71,7 +71,7 @@ class InputManager {
     const sliderThumb = document.getElementById('slider-thumb');
     let startY = 0;
     let isSoftDropping = false;
-    let activeTouchPieceId = -1; // Håller koll på vilken pjäs vi började dra i
+    let activeTouchPieceId = -1;
 
     if (sliderTrack) {
       const updateAbsolutePosition = (clientX) => {
@@ -82,9 +82,14 @@ class InputManager {
         touchX = Math.max(0, Math.min(touchX, rect.width));
 
         const percent = touchX / rect.width;
-        sliderThumb.style.left = `${percent * 100}%`;
+
+        // Visuell spärr: håll ringen (thumb) strikt innanför track-kanterna
+        const thumbRadius = sliderThumb.offsetWidth / 2;
+        const visualX = Math.max(thumbRadius, Math.min(touchX, rect.width - thumbRadius));
+        sliderThumb.style.left = `${visualX}px`;
         sliderThumb.style.transform = `translateX(-50%)`;
 
+        // Spelmekanik
         let cur = this.engine.state.current;
         let matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
 
@@ -122,9 +127,7 @@ class InputManager {
         startY = e.touches[0].clientY;
         isSoftDropping = false;
 
-        // Registrera nuvarande pjäs-ID när vi sätter ner fingret
         activeTouchPieceId = this.engine.state.pieceIdCtr;
-
         updateAbsolutePosition(e.touches[0].clientX);
       }, { passive: false });
 
@@ -135,7 +138,6 @@ class InputManager {
         const currentY = e.touches[0].clientY;
         const dy = currentY - startY;
 
-        // Dynamisk Soft Drop: Aktiveras när du drar ner, inaktiveras när du drar upp igen
         if (dy > 30) {
           if (!isSoftDropping) {
             this.state.active.softDrop = true;
@@ -155,12 +157,10 @@ class InputManager {
         e.preventDefault();
         if (this.engine.state.paused) return;
 
-        // Utför Hard Drop ENDAST om vi släpper samma pjäs som vi började dra i
         if (this.engine.state.pieceIdCtr === activeTouchPieceId) {
           this.engine.action('hardDrop');
         }
 
-        // Återställ allt för nästa pjäs
         sliderThumb.style.left = `50%`;
         sliderThumb.style.transform = `translateX(-50%)`;
         this.state.active.softDrop = false;
