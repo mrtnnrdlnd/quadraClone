@@ -87,7 +87,6 @@ class InputManager {
         let cur = this.engine.state.current;
         let matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
 
-        // Identifiera var de faktiska solida blocken finns i matrisen
         let minC = 4, maxC = 0;
         for(let r=0; r<matrix.length; r++) {
           for(let c=0; c<matrix[r].length; c++) {
@@ -98,7 +97,6 @@ class InputManager {
           }
         }
 
-        // Mappa slidern baserat på klossens visuella kanter istället för 0-9
         let targetX = Math.round(-minC + percent * (CONFIG.COLS - 1 - maxC + minC));
 
         let safety = 0;
@@ -132,6 +130,7 @@ class InputManager {
         const currentY = e.touches[0].clientY;
         const dy = currentY - startY;
 
+        // Dra neråt = Soft Drop
         if (dy > 30 && !isSoftDropping) {
           this.state.active.softDrop = true;
           isSoftDropping = true;
@@ -144,12 +143,8 @@ class InputManager {
         e.preventDefault();
         if (this.engine.state.paused) return;
 
-        const changedTouch = e.changedTouches[0];
-        const dy = changedTouch.clientY - startY;
-
-        if (dy < -30) {
-          this.engine.action('hardDrop');
-        }
+        // Släpp slidern = Hard Drop
+        this.engine.action('hardDrop');
 
         sliderThumb.style.left = `50%`;
         sliderThumb.style.transform = `translateX(-50%)`;

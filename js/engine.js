@@ -13,7 +13,8 @@ class QuadraEngine {
       current: null, nextQueue: [], dropCounter: 0, lastTime: 0,
       isFlashing: false, flashTimer: 0, pendingRows: [],
       isCascading: false, fragments: [], combo: 1, cascadeLines: 0,
-      gameTimeMs: 0
+      gameTimeMs: 0,
+      softDropSuppressed: false
     };
     this.tempVisited = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(false));
     this.loadSettings();
@@ -109,12 +110,16 @@ class QuadraEngine {
         }
       }
     }
+
+    this.state.softDropSuppressed = true; // Spärra softdrop för nästa kloss
     this.state.current = null;
     this.state.dropCounter = 0;
+
     let fullRows = [];
     for (let r = 0; r < CONFIG.ROWS; r++) {
       if (grid[r].every(val => val !== 0)) fullRows.push(r);
     }
+
     if (fullRows.length > 0) {
       this.state.pendingRows = fullRows;
       this.state.isFlashing = true;
@@ -302,6 +307,12 @@ class QuadraEngine {
       }
     } else if (this.state.current) {
       const inp = this.input.state;
+
+      // Lås upp softdrop om användaren släppt knappen
+      if (!inp.active.softDrop) {
+        this.state.softDropSuppressed = false;
+      }
+
       if (inp.active.left || inp.active.right) {
         inp.dasTimer += dt;
         if (inp.dasTimer > this.cfg.das) {
@@ -313,14 +324,16 @@ class QuadraEngine {
           }
         }
       }
-      this.state.dropCounter += inp.active.softDrop ? Math.max(dt * this.cfg.softDropSpeed, this.getDropInterval()) : dt;
+
+      const isSoftDropping = inp.active.softDrop && !this.state.softDropSuppressed;
+      this.state.dropCounter += isSoftDropping ? Math.max(dt * this.cfg.softDropSpeed, this.getDropInterval()) : dt;
       const dInt = this.getDropInterval();
 
       while (this.state.dropCounter > dInt && this.state.current) {
         if (!this.checkCollision(this.state.current.x, this.state.current.y + 1, this.state.current.rot)) {
           this.state.current.y++;
           this.updateGhostY();
-          if (inp.active.softDrop) {
+          if (isSoftDropping) {
             this.state.score++;
             this.renderer.updateUI(this.state.score, this.state.lines, this.state.level);
           }
