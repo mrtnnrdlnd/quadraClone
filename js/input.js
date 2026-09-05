@@ -71,6 +71,7 @@ class InputManager {
     const sliderThumb = document.getElementById('slider-thumb');
     let startY = 0;
     let isSoftDropping = false;
+    let activeTouchPieceId = -1; // Håller koll på vilken pjäs vi började dra i
 
     if (sliderTrack) {
       const updateAbsolutePosition = (clientX) => {
@@ -120,6 +121,10 @@ class InputManager {
         e.preventDefault();
         startY = e.touches[0].clientY;
         isSoftDropping = false;
+
+        // Registrera nuvarande pjäs-ID när vi sätter ner fingret
+        activeTouchPieceId = this.engine.state.pieceIdCtr;
+
         updateAbsolutePosition(e.touches[0].clientX);
       }, { passive: false });
 
@@ -130,10 +135,17 @@ class InputManager {
         const currentY = e.touches[0].clientY;
         const dy = currentY - startY;
 
-        // Dra neråt = Soft Drop
-        if (dy > 30 && !isSoftDropping) {
-          this.state.active.softDrop = true;
-          isSoftDropping = true;
+        // Dynamisk Soft Drop: Aktiveras när du drar ner, inaktiveras när du drar upp igen
+        if (dy > 30) {
+          if (!isSoftDropping) {
+            this.state.active.softDrop = true;
+            isSoftDropping = true;
+          }
+        } else {
+          if (isSoftDropping) {
+            this.state.active.softDrop = false;
+            isSoftDropping = false;
+          }
         }
 
         updateAbsolutePosition(e.touches[0].clientX);
@@ -143,9 +155,12 @@ class InputManager {
         e.preventDefault();
         if (this.engine.state.paused) return;
 
-        // Släpp slidern = Hard Drop
-        this.engine.action('hardDrop');
+        // Utför Hard Drop ENDAST om vi släpper samma pjäs som vi började dra i
+        if (this.engine.state.pieceIdCtr === activeTouchPieceId) {
+          this.engine.action('hardDrop');
+        }
 
+        // Återställ allt för nästa pjäs
         sliderThumb.style.left = `50%`;
         sliderThumb.style.transform = `translateX(-50%)`;
         this.state.active.softDrop = false;
