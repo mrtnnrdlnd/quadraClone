@@ -69,30 +69,58 @@ class InputManager {
 
     const sliderTrack = document.getElementById('slider-track');
     const sliderThumb = document.getElementById('slider-thumb');
-    let startX = 0;
     let startY = 0;
-    let currentDragX = 0;
     let isSoftDropping = false;
-    const sensitivity = 22; // Pixlar per block i sidled
 
     if (sliderTrack) {
+      const updateAbsolutePosition = (clientX) => {
+        if (!this.engine.state.current || this.engine.state.paused) return;
+
+        const rect = sliderTrack.getBoundingClientRect();
+        let touchX = clientX - rect.left;
+        touchX = Math.max(0, Math.min(touchX, rect.width));
+
+        // Visuell uppdatering (0% till 100% bredd)
+        const percent = (touchX / rect.width) * 100;
+        sliderThumb.style.left = `${percent}%`;
+        sliderThumb.style.transform = `translateX(-50%)`;
+
+        // Mappa sliderns bredd till de 10 kolumnerna på spelplanen (0-9)
+        let targetX = Math.floor((touchX / rect.width) * 10);
+        targetX = Math.max(0, Math.min(targetX, 9));
+
+        let cur = this.engine.state.current;
+
+        // Flytta pjäsen stegvis via motorns kollisionslogik tills den når targetX eller slår i något
+        let safety = 0;
+        while (cur.x < targetX && safety < 10) {
+          let prevX = cur.x;
+          this.engine.action('right');
+          if (cur.x === prevX) break; // Stoppad av kollision
+          safety++;
+        }
+
+        safety = 0;
+        while (cur.x > targetX && safety < 10) {
+          let prevX = cur.x;
+          this.engine.action('left');
+          if (cur.x === prevX) break; // Stoppad av kollision
+          safety++;
+        }
+      };
+
       sliderTrack.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
-        currentDragX = 0;
         isSoftDropping = false;
-        this.state.dasTimer = 0;
-        this.state.arrTimer = 0;
+        updateAbsolutePosition(e.touches[0].clientX);
       }, { passive: false });
 
       sliderTrack.addEventListener('touchmove', (e) => {
         e.preventDefault();
         if (this.engine.state.paused) return;
 
-        const currentX = e.touches[0].clientX;
         const currentY = e.touches[0].clientY;
-        const dx = currentX - startX;
         const dy = currentY - startY;
 
         // --- Vertikal logik (Soft Drop) ---
@@ -101,25 +129,8 @@ class InputManager {
           isSoftDropping = true;
         }
 
-        // --- Horisontell logik (Sidledsflytt) ---
-        const trackWidth = sliderTrack.clientWidth;
-        const maxMove = trackWidth / 2 - 20; // 20 = halva tummens bredd
-        let visualX = Math.max(-maxMove, Math.min(maxMove, dx));
-        sliderThumb.style.transform = `translateX(calc(-50% + ${visualX}px))`;
-
-        const blocksToMove = Math.trunc(dx / sensitivity);
-        if (blocksToMove !== currentDragX) {
-          const diff = blocksToMove - currentDragX;
-          for(let i = 0; i < Math.abs(diff); i++) {
-             if (diff > 0) this.engine.action('right');
-             else this.engine.action('left');
-          }
-          currentDragX = blocksToMove;
-
-          this.state.active.left = diff < 0;
-          this.state.active.right = diff > 0;
-          this.state.lastDir = diff < 0 ? 'left' : 'right';
-        }
+        // --- Horisontell logik (Absolut position) ---
+        updateAbsolutePosition(e.touches[0].clientX);
       }, { passive: false });
 
       sliderTrack.addEventListener('touchend', (e) => {
@@ -134,10 +145,9 @@ class InputManager {
           this.engine.action('hardDrop');
         }
 
-        // Återställ allt
+        // Återställ knappen till mitten för nästa pjäs
+        sliderThumb.style.left = `50%`;
         sliderThumb.style.transform = `translateX(-50%)`;
-        this.state.active.left = false;
-        this.state.active.right = false;
         this.state.active.softDrop = false;
         isSoftDropping = false;
       });
