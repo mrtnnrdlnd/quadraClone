@@ -2,6 +2,7 @@
 <html lang="sv">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>JS Quadra Clone - Modular</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -10,7 +11,6 @@
     <div class="next-container">
       <canvas id="nextCanvas" width="240" height="60"></canvas>
     </div>
-
     <div class="quadra-layout">
       <div class="side-panel">
         <div class="stat-row"><canvas id="prev-O" class="mini-canvas"></canvas><div class="retro-box" id="count-O">0</div></div>
@@ -22,11 +22,9 @@
         <div class="stat-row"><canvas id="prev-T" class="mini-canvas"></canvas><div class="retro-box" id="count-T">0</div></div>
         <div class="stat-row total-row"><span class="stat-label">Total:</span><div class="retro-box" id="count-Total">0</div></div>
       </div>
-
       <div class="board-container">
         <canvas id="board" width="240" height="480"></canvas>
       </div>
-
       <div class="side-panel" style="gap: 4px;">
         <div class="stat-row"><span class="stat-label">Single</span><div class="retro-box" id="lines-1">0</div></div>
         <div class="stat-row"><span class="stat-label">Double</span><div class="retro-box" id="lines-2">0</div></div>
@@ -46,11 +44,23 @@
         <div class="stat-row total-row" style="padding-top: 5px;"><span class="stat-label">Total:</span><div class="retro-box" id="lines-Total">0</div></div>
       </div>
     </div>
-
     <div class="bottom-stats">
       <div class="stat-row"><span class="stat-label">Score:</span><div class="retro-box" id="score">0</div></div>
       <div class="stat-row"><span class="stat-label">Lines:</span><div class="retro-box" id="lines">0</div></div>
       <div class="stat-row"><span class="stat-label">Level:</span><div class="retro-box" id="level">1</div></div>
+    </div>
+
+    <div class="mobile-controls">
+      <div class="mobile-bottom-row">
+        <div class="rot-buttons">
+          <button id="btn-rot-ccw">↺</button>
+          <button id="btn-rot-cw">↻</button>
+          <button id="btn-rot-180">↕</button>
+        </div>
+        <div id="slider-track" class="slider-track">
+          <div id="slider-thumb" class="slider-thumb"></div>
+        </div>
+      </div>
     </div>
   </div>
 
