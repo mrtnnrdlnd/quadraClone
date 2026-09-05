@@ -53,8 +53,8 @@ class InputManager {
   bindTouchEvents() {
     const btnMap = {
       'btn-rot-ccw': 'rotateCCW',
-      'btn-rot-cw': 'rotateCW',
-      'btn-rot-180': 'rotate180'
+      'btn-rot-180': 'rotate180',
+      'btn-rot-cw': 'rotateCW'
     };
 
     for (let id in btnMap) {
@@ -80,23 +80,32 @@ class InputManager {
         let touchX = clientX - rect.left;
         touchX = Math.max(0, Math.min(touchX, rect.width));
 
-        // Visuell uppdatering (0% till 100% bredd)
-        const percent = (touchX / rect.width) * 100;
-        sliderThumb.style.left = `${percent}%`;
+        const percent = touchX / rect.width;
+        sliderThumb.style.left = `${percent * 100}%`;
         sliderThumb.style.transform = `translateX(-50%)`;
 
-        // Mappa sliderns bredd till de 10 kolumnerna på spelplanen (0-9)
-        let targetX = Math.floor((touchX / rect.width) * 10);
-        targetX = Math.max(0, Math.min(targetX, 9));
-
         let cur = this.engine.state.current;
+        let matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
 
-        // Flytta pjäsen stegvis via motorns kollisionslogik tills den når targetX eller slår i något
+        // Identifiera var de faktiska solida blocken finns i matrisen
+        let minC = 4, maxC = 0;
+        for(let r=0; r<matrix.length; r++) {
+          for(let c=0; c<matrix[r].length; c++) {
+            if(matrix[r][c] !== 0) {
+              if(c < minC) minC = c;
+              if(c > maxC) maxC = c;
+            }
+          }
+        }
+
+        // Mappa slidern baserat på klossens visuella kanter istället för 0-9
+        let targetX = Math.round(-minC + percent * (CONFIG.COLS - 1 - maxC + minC));
+
         let safety = 0;
         while (cur.x < targetX && safety < 10) {
           let prevX = cur.x;
           this.engine.action('right');
-          if (cur.x === prevX) break; // Stoppad av kollision
+          if (cur.x === prevX) break;
           safety++;
         }
 
@@ -104,7 +113,7 @@ class InputManager {
         while (cur.x > targetX && safety < 10) {
           let prevX = cur.x;
           this.engine.action('left');
-          if (cur.x === prevX) break; // Stoppad av kollision
+          if (cur.x === prevX) break;
           safety++;
         }
       };
@@ -123,13 +132,11 @@ class InputManager {
         const currentY = e.touches[0].clientY;
         const dy = currentY - startY;
 
-        // --- Vertikal logik (Soft Drop) ---
         if (dy > 30 && !isSoftDropping) {
           this.state.active.softDrop = true;
           isSoftDropping = true;
         }
 
-        // --- Horisontell logik (Absolut position) ---
         updateAbsolutePosition(e.touches[0].clientX);
       }, { passive: false });
 
@@ -140,12 +147,10 @@ class InputManager {
         const changedTouch = e.changedTouches[0];
         const dy = changedTouch.clientY - startY;
 
-        // --- Vertikal logik (Hard Drop) ---
         if (dy < -30) {
           this.engine.action('hardDrop');
         }
 
-        // Återställ knappen till mitten för nästa pjäs
         sliderThumb.style.left = `50%`;
         sliderThumb.style.transform = `translateX(-50%)`;
         this.state.active.softDrop = false;
