@@ -2,7 +2,6 @@ class QuadraEngine {
   constructor() {
     this.renderer = new Renderer();
     this.input = new InputManager(this);
-
     this.stats = {
       pieces: { O:0, I:0, Z:0, J:0, L:0, S:0, T:0, Total:0 },
       clears: { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0, 13:0, 14:0, more:0, Total:0 }
@@ -17,10 +16,8 @@ class QuadraEngine {
       gameTimeMs: 0
     };
     this.tempVisited = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(false));
-
     this.loadSettings();
     this.renderer.drawMiniPieces();
-
     for(let i=0; i<3; i++) this.state.nextQueue.push({ type: this.getBagPiece(), rot: 0 });
     this.spawnNext();
     requestAnimationFrame(t => this.loop(t));
@@ -40,13 +37,24 @@ class QuadraEngine {
     localStorage.setItem('quadraConfig', JSON.stringify(this.cfg));
   }
 
-  getDropInterval() { return Math.max(80, (1000 / this.cfg.baseGravity) - (this.state.level - 1) * 90); }
+  getDropInterval() {
+    return Math.max(80, (1000 / this.cfg.baseGravity) - (this.state.level - 1) * 90);
+  }
 
   getBagPiece() {
     if (this.state.bag.length === 0) {
       this.state.bag = Object.keys(CONFIG.BASE_SHAPES).sort(() => Math.random() - 0.5);
     }
     return this.state.bag.pop();
+  }
+
+  updateGhostY() {
+    if (!this.state.current) return;
+    let gy = this.state.current.y;
+    while (!this.checkCollision(this.state.current.x, gy + 1, this.state.current.rot, this.state.current.type)) {
+      gy++;
+    }
+    this.state.current.ghostY = gy;
   }
 
   spawnNext() {
@@ -56,6 +64,7 @@ class QuadraEngine {
       x: Math.floor((CONFIG.COLS - PRECALC_ROTATIONS[nextPiece.type][0][0].length) / 2),
       y: nextPiece.type === 'I' ? -1 : 0
     };
+    this.updateGhostY();
     this.state.nextQueue.push({ type: this.getBagPiece(), rot: 0 });
 
     if (this.state.current) {
@@ -63,6 +72,12 @@ class QuadraEngine {
       this.stats.pieces.Total++;
       this.renderer.updateStat('count', this.state.current.type, this.stats.pieces[this.state.current.type]);
       this.renderer.updateStat('count', 'Total', this.stats.pieces.Total);
+
+      if (this.input && this.input.state) {
+        const inp = this.input.state;
+        if (inp.active.left && inp.lastDir === 'left') this.action('left');
+        else if (inp.active.right && inp.lastDir === 'right') this.action('right');
+      }
 
       if (this.checkCollision(this.state.current.x, this.state.current.y, this.state.current.rot)) {
         this.triggerGameOver();
@@ -112,20 +127,17 @@ class QuadraEngine {
   processCascade() {
     const { grid, pendingRows, combo } = this.state;
     pendingRows.forEach(r => grid[r].fill(0));
-
     const lCount = pendingRows.length;
     this.state.cascadeLines += lCount;
-
     const pts = [0, 100, 300, 500, 800, 1200, 1800];
     this.state.score += (pts[lCount] || 2000) * this.state.level * combo;
     this.state.lines += lCount;
     this.state.level = Math.floor(this.state.lines / 10) + 1;
-
     this.renderer.updateUI(this.state.score, this.state.lines, this.state.level);
     this.tempVisited.forEach(row => row.fill(false));
-
     let frags = [];
     let fragId = 1;
+
     for (let r = 0; r < CONFIG.ROWS; r++) {
       for (let c = 0; c < CONFIG.COLS; c++) {
         if (grid[r][c] !== 0 && !this.tempVisited[r][c]) {
@@ -143,16 +155,21 @@ class QuadraEngine {
               }
             });
           }
+
+          const blockSet = new Set(blocks.map(b => `${b.r},${b.c}`));
           blocks.forEach(b => {
             b.edges = {
-              top: !blocks.some(ob => ob.r === b.r - 1 && ob.c === b.c), bottom: !blocks.some(ob => ob.r === b.r + 1 && ob.c === b.c),
-              left: !blocks.some(ob => ob.r === b.r && ob.c === b.c - 1), right: !blocks.some(ob => ob.r === b.r && ob.c === b.c + 1)
+              top: !blockSet.has(`${b.r - 1},${b.c}`),
+              bottom: !blockSet.has(`${b.r + 1},${b.c}`),
+              left: !blockSet.has(`${b.r},${b.c - 1}`),
+              right: !blockSet.has(`${b.r},${b.c + 1}`)
             };
           });
           frags.push({ fId: fragId++, blocks, type, origId, dropCount: 0, v: 0, cy: 0, done: false });
         }
       }
     }
+
     let tempGrid = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(0));
     frags.forEach(f => f.blocks.forEach(b => tempGrid[b.r][b.c] = f));
     let moved = true;
@@ -174,6 +191,7 @@ class QuadraEngine {
         }
       });
     }
+
     this.state.fragments = frags.filter(f => f.dropCount > 0);
     grid.forEach(row => row.fill(0));
     frags.forEach(f => {
@@ -183,6 +201,7 @@ class QuadraEngine {
         f.blocks.forEach(b => b.r -= f.dropCount);
       }
     });
+
     if (this.state.fragments.length > 0) {
       this.state.isCascading = true;
     } else {
@@ -217,15 +236,23 @@ class QuadraEngine {
     if (!this.state.current || this.state.gameOver || this.state.paused) return;
     const cur = this.state.current;
     switch (type) {
-      case 'left': if (!this.checkCollision(cur.x - 1, cur.y, cur.rot)) cur.x--; break;
-      case 'right': if (!this.checkCollision(cur.x + 1, cur.y, cur.rot)) cur.x++; break;
+      case 'left':
+        if (!this.checkCollision(cur.x - 1, cur.y, cur.rot)) { cur.x--; this.updateGhostY(); }
+        break;
+      case 'right':
+        if (!this.checkCollision(cur.x + 1, cur.y, cur.rot)) { cur.x++; this.updateGhostY(); }
+        break;
       case 'rotateCW':
       case 'rotateCCW':
       case 'rotate180': {
         const rotMap = { 'rotateCW': 1, 'rotateCCW': 3, 'rotate180': 2 };
         const nRot = (cur.rot + rotMap[type]) % 4;
         for (let k of CONFIG.KICKS) {
-          if (!this.checkCollision(cur.x + k.x, cur.y + k.y, nRot)) { cur.rot = nRot; cur.x += k.x; cur.y += k.y; break; }
+          if (!this.checkCollision(cur.x + k.x, cur.y + k.y, nRot)) {
+            cur.rot = nRot; cur.x += k.x; cur.y += k.y;
+            this.updateGhostY();
+            break;
+          }
         }
         break;
       }
@@ -239,6 +266,7 @@ class QuadraEngine {
   update(dt) {
     if (this.state.gameOver || this.state.paused) return;
     this.state.gameTimeMs += dt;
+
     if (this.state.isFlashing) {
       this.state.flashTimer += dt;
       if (this.state.flashTimer > CONFIG.FLASH_DURATION) {
@@ -287,9 +315,11 @@ class QuadraEngine {
       }
       this.state.dropCounter += inp.active.softDrop ? Math.max(dt * this.cfg.softDropSpeed, this.getDropInterval()) : dt;
       const dInt = this.getDropInterval();
+
       while (this.state.dropCounter > dInt && this.state.current) {
         if (!this.checkCollision(this.state.current.x, this.state.current.y + 1, this.state.current.rot)) {
           this.state.current.y++;
+          this.updateGhostY();
           if (inp.active.softDrop) {
             this.state.score++;
             this.renderer.updateUI(this.state.score, this.state.lines, this.state.level);
