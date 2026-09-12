@@ -125,6 +125,8 @@ canvas#board {
   padding: 8px 12px;
   font-family: inherit;
   cursor: pointer;
+  z-index: 200; /* ensure button is above the scaled game wrapper on mobile */
+  touch-action: manipulation; /* prefer immediate tap handling on mobile */
 }
 
 .settings-btn:hover {
