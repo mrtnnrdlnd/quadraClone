@@ -109,6 +109,10 @@ function resizeGame() {
 
   // Apply the new scale
   wrapper.style.transform = `scale(${scale})`;
+
+  if (window.game && window.game.input && window.game.input.syncSliderThumb) {
+    window.game.input.syncSliderThumb();
+  }
 }
 
 // Initialize and hook into relevant events. We keep resize/orientation handlers but also
