@@ -267,7 +267,7 @@ input[type=range] {
 /* --- MOBILANPASSNING & TOUCHKONTROLLER --- */
 .mobile-rot-side {
   display: none;
-  width: 56px; /* tighter space for vertical buttons on mobile */
+  width: 64px;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end; /* place buttons at bottom */
@@ -315,20 +315,23 @@ input[type=range] {
 }
 
 .rot-buttons button {
-  width: 44px;
-  height: 44px;
-  background: #111;
-  border: 1px solid #00c3c3;
+  width: 52px;
+  height: 52px;
+  background: #1b1d1f;
+  border: 1px solid #3c464d;
   color: #00c3c3;
-  font-size: 20px;
-  border-radius: 7px;
+  font-size: 24px;
+  border-radius: 0;
   touch-action: manipulation;
   cursor: pointer;
+  box-sizing: border-box;
+  box-shadow: inset 0 0 0 1px rgba(0, 195, 195, 0.12);
 }
 
 .rot-buttons button:active {
-  background: #00c3c3;
-  color: #000;
+  background: rgba(0, 195, 195, 0.14);
+  border-color: #00c3c3;
+  color: #7afcff;
 }
 
 /* Soft-drop button: placed with rotations on the left, active while pressed */
