@@ -265,11 +265,11 @@ input[type=range] {
 /* --- MOBILANPASSNING & TOUCHKONTROLLER --- */
 .mobile-rot-side {
   display: none;
-  width: 70px; /* space for vertical buttons */
+  width: 56px; /* tighter space for vertical buttons on mobile */
   flex-direction: column;
   align-items: center;
   justify-content: flex-end; /* place buttons at bottom */
-  gap: 10px;
+  gap: 6px;
   margin-top: 0;
   z-index: 20;
   box-sizing: border-box;
@@ -308,17 +308,17 @@ input[type=range] {
 .rot-buttons {
   display: flex;
   flex-direction: column; /* Staplar knapparna vertikalt */
-  gap: 10px;
+  gap: 6px;
 }
 
 .rot-buttons button {
-  width: 55px;
-  height: 55px;
+  width: 44px;
+  height: 44px;
   background: #111;
   border: 1px solid #00c3c3;
   color: #00c3c3;
-  font-size: 24px;
-  border-radius: 8px;
+  font-size: 20px;
+  border-radius: 7px;
   touch-action: manipulation;
   cursor: pointer;
 }
@@ -330,13 +330,13 @@ input[type=range] {
 
 /* Soft-drop button: placed with rotations on the left, active while pressed */
 .soft-drop-btn {
-  width: 55px;
-  height: 55px;
+  width: 44px;
+  height: 44px;
   background: #00c3c3;
   border: 1px solid #008b8b;
   color: #000;
-  font-size: 24px;
-  border-radius: 8px;
+  font-size: 20px;
+  border-radius: 7px;
   touch-action: manipulation;
   cursor: pointer;
 }
@@ -384,6 +384,7 @@ input[type=range] {
 
   .quadra-layout {
     align-items: center;
+    gap: 8px;
   }
 
   .side-panel {
@@ -410,18 +411,18 @@ input[type=range] {
 
   .bottom-stats .stat-row {
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
   }
 
   .bottom-stats .retro-box {
-    text-align: center;
-    width: 65px;
-    font-size: 14px;
-    padding: 2px;
+    text-align: right;
+    width: 52px;
+    font-size: 12px;
+    padding: 1px 4px;
   }
 
   .bottom-stats .stat-label {
-    font-size: 15px;
+    font-size: 12px;
   }
 
   .settings-btn {
