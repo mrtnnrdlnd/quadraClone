@@ -14,7 +14,8 @@ class QuadraEngine {
       isFlashing: false, flashTimer: 0, pendingRows: [],
       isCascading: false, fragments: [], combo: 1, cascadeLines: 0,
       gameTimeMs: 0,
-      softDropSuppressed: false
+      softDropSuppressed: false,
+      placementTimestamps: []
     };
     this.tempVisited = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(false));
     this.loadSettings();
@@ -56,6 +57,16 @@ class QuadraEngine {
       gy++;
     }
     this.state.current.ghostY = gy;
+  }
+
+  // Returns number of pieces placed in the last 60 seconds
+  getPiecesPerMinute() {
+    if (!this.state.placementTimestamps) this.state.placementTimestamps = [];
+    const now = Date.now();
+    const cutoff = now - 60000;
+    // keep timestamps within the last minute
+    this.state.placementTimestamps = this.state.placementTimestamps.filter(t => t >= cutoff);
+    return this.state.placementTimestamps.length;
   }
 
   spawnNext() {
@@ -121,6 +132,10 @@ class QuadraEngine {
         }
       }
     }
+
+    // record timestamp for pieces-per-minute metric
+    if (!this.state.placementTimestamps) this.state.placementTimestamps = [];
+    this.state.placementTimestamps.push(Date.now());
 
     this.state.softDropSuppressed = true; // Spärra softdrop för nästa kloss
     this.state.current = null;
@@ -357,6 +372,11 @@ class QuadraEngine {
         }
         this.state.dropCounter -= dInt;
       }
+    }
+
+    // Update live pieces-per-minute display (last 60s)
+    if (this.renderer && typeof this.renderer.updateBPM === 'function') {
+      this.renderer.updateBPM(this.getPiecesPerMinute());
     }
   }
 

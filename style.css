@@ -98,6 +98,8 @@ body {
 
 canvas#board {
   display: block;
+  touch-action: none; /* prevent browser panning/zooming while using gestures */
+  -webkit-tap-highlight-color: transparent;
 }
 
 .bottom-stats {

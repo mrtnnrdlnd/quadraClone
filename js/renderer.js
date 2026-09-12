@@ -57,6 +57,11 @@ class Renderer {
     this.ui.level.innerText = level;
   }
 
+  updateBPM(bpm) {
+    const el = document.getElementById('bpm');
+    if (el) el.innerText = bpm;
+  }
+
   updateStat(prefix, key, value) {
     const el = document.getElementById(`${prefix}-${key}`);
     if(el) el.innerText = value;

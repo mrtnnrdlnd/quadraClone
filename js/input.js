@@ -118,15 +118,79 @@ class InputManager {
       'btn-rot-cw': 'rotateCW'
     };
 
-    // One-shot rotation buttons
+    // Repeat timings for held rotations
+    const ROT_REPEAT_INITIAL = 250; // ms before repeat starts
+    const ROT_REPEAT_INTERVAL = 120; // ms between repeats
+
+    // Board gesture thresholds
+    const BOARD_TAP_MAX_MOVE = 30; // px
+    const BOARD_TAP_MAX_TIME = 250; // ms
+    const BOARD_LONG_PRESS_DELAY = 300; // ms
+    const BOARD_SWIPE_THRESHOLD = 60; // px (for swipe down hard drop)
+    const BOARD_MOVE_THRESHOLD = 12; // px (horizontal drag to move)
+    let lastBoardTapTime = 0;
+
+    // Helper: map clientX inside a rect to an allowed column for the current piece
+    const getColumnFromClientX = (clientX, rect) => {
+      if (!this.engine.state.current) return null;
+      const metrics = this.getCurrentPieceXRange(this.engine.state.current);
+      if (!metrics) return null;
+      let touchX = clientX - rect.left;
+      touchX = Math.max(0, Math.min(touchX, rect.width));
+      const percentNormalized = rect.width <= 0 ? 0.5 : (touchX / rect.width);
+      const columnIndex = metrics.range <= 0 ? metrics.allowedMin : Math.round(metrics.allowedMin + percentNormalized * metrics.range);
+      return Math.max(metrics.allowedMin, Math.min(columnIndex, metrics.allowedMax));
+    };
+
+    const moveCurrentToColumn = (targetX) => {
+      const cur = this.engine.state.current;
+      if (!cur) return;
+      let safety = 0;
+      while (cur.x < targetX && safety < 12) {
+        const prevX = cur.x;
+        this.engine.action('right');
+        if (cur.x === prevX) break;
+        safety++;
+      }
+      safety = 0;
+      while (cur.x > targetX && safety < 12) {
+        const prevX = cur.x;
+        this.engine.action('left');
+        if (cur.x === prevX) break;
+        safety++;
+      }
+      if (this.syncSliderThumb) this.syncSliderThumb();
+    };
+
+    // Rotation buttons: support hold-to-repeat + simple haptic feedback
     for (let id in btnMap) {
       const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener('touchstart', (e) => {
-          e.preventDefault();
-          this.engine.action(btnMap[id]);
-        }, { passive: false });
-      }
+      if (!el) continue;
+      let repeatTimeout = null;
+      let repeatInterval = null;
+      const start = (e) => {
+        e.preventDefault();
+        if (this.engine.state.paused) return;
+        this.engine.action(btnMap[id]);
+        if (navigator.vibrate) navigator.vibrate(10);
+        repeatTimeout = setTimeout(() => {
+          repeatInterval = setInterval(() => {
+            this.engine.action(btnMap[id]);
+            if (navigator.vibrate) navigator.vibrate(8);
+          }, ROT_REPEAT_INTERVAL);
+        }, ROT_REPEAT_INITIAL);
+      };
+      const stop = (e) => {
+        if (e) e.preventDefault();
+        if (repeatTimeout) { clearTimeout(repeatTimeout); repeatTimeout = null; }
+        if (repeatInterval) { clearInterval(repeatInterval); repeatInterval = null; }
+      };
+      el.addEventListener('touchstart', start, { passive: false });
+      el.addEventListener('touchend', stop, { passive: false });
+      el.addEventListener('touchcancel', stop, { passive: false });
+      // mouse support
+      el.addEventListener('mousedown', start);
+      document.addEventListener('mouseup', stop);
     }
 
     // Soft-drop button (continuous while held)
@@ -153,8 +217,12 @@ class InputManager {
 
       softBtn.addEventListener('touchend', stopSoftDrop, { passive: false });
       softBtn.addEventListener('touchcancel', stopSoftDrop, { passive: false });
+      // mouse support
+      softBtn.addEventListener('mousedown', (e) => { e.preventDefault(); this.state.active.softDrop = true; });
+      document.addEventListener('mouseup', () => { this.state.active.softDrop = false; });
     }
 
+    // Slider track & thumb (reuse helper to snap)
     this.sliderTrack = document.getElementById('slider-track');
     this.sliderThumb = document.getElementById('slider-thumb');
     let activeSliderTouchId = null;
@@ -163,47 +231,12 @@ class InputManager {
     if (this.sliderTrack && this.sliderThumb) {
       const getTouchById = (touchList, id) => Array.from(touchList).find(touch => touch.identifier === id) || null;
 
-      const updateAbsolutePosition = (clientX) => {
+      const updateFromClientX = (clientX) => {
         if (!this.engine.state.current || this.engine.state.paused) return;
-
         const rect = this.sliderTrack.getBoundingClientRect();
-        let touchX = clientX - rect.left;
-        touchX = Math.max(0, Math.min(touchX, rect.width));
-
-        const naturalTrackWidth = this.sliderTrack.offsetWidth || rect.width;
-        const thumbNaturalWidth = this.sliderThumb.offsetWidth || 55;
-        const thumbRadius = thumbNaturalWidth / 2;
-        const scale = rect.width / naturalTrackWidth || 1;
-        const thumbRadiusScaled = thumbRadius * scale;
-        const constrainedX = Math.max(thumbRadiusScaled, Math.min(touchX, rect.width - thumbRadiusScaled));
-        const usableScaledWidth = Math.max(1, rect.width - 2 * thumbRadiusScaled);
-        const percentNormalized = (constrainedX - thumbRadiusScaled) / usableScaledWidth;
-        const cur = this.engine.state.current;
-        const metrics = this.getCurrentPieceXRange(cur);
-        if (!metrics) return;
-
-        const columnIndex = metrics.range <= 0
-          ? metrics.allowedMin
-          : Math.round(metrics.allowedMin + percentNormalized * metrics.range);
-
-        const targetX = columnIndex;
-        let safety = 0;
-        while (cur.x < targetX && safety < 10) {
-          const prevX = cur.x;
-          this.engine.action('right');
-          if (cur.x === prevX) break;
-          safety++;
-        }
-
-        safety = 0;
-        while (cur.x > targetX && safety < 10) {
-          const prevX = cur.x;
-          this.engine.action('left');
-          if (cur.x === prevX) break;
-          safety++;
-        }
-
-        this.syncSliderThumb();
+        const columnIndex = getColumnFromClientX(clientX, rect);
+        if (columnIndex === null) return;
+        moveCurrentToColumn(columnIndex);
       };
 
       this.sliderTrack.addEventListener('touchstart', (e) => {
@@ -213,7 +246,7 @@ class InputManager {
         if (!touch) return;
         activeSliderTouchId = touch.identifier;
         activeSliderPieceId = this.engine.state.pieceIdCtr;
-        updateAbsolutePosition(touch.clientX);
+        updateFromClientX(touch.clientX);
       }, { passive: false });
 
       this.sliderTrack.addEventListener('touchmove', (e) => {
@@ -221,7 +254,7 @@ class InputManager {
         if (this.engine.state.paused || activeSliderTouchId === null) return;
         const touch = getTouchById(e.touches, activeSliderTouchId);
         if (!touch) return;
-        updateAbsolutePosition(touch.clientX);
+        updateFromClientX(touch.clientX);
       }, { passive: false });
 
       const endHandler = (e) => {
@@ -235,12 +268,111 @@ class InputManager {
 
         if (shouldHardDrop) {
           this.engine.action('hardDrop');
+          if (navigator.vibrate) navigator.vibrate(20);
         }
         this.syncSliderThumb();
       };
 
       this.sliderTrack.addEventListener('touchend', endHandler, { passive: false });
       this.sliderTrack.addEventListener('touchcancel', endHandler, { passive: false });
+    }
+
+    // Board gestures: tap = rotateCW, double-tap = rotate180, swipe down = hardDrop,
+    // horizontal drag/swipe = quick move (snap to column), long-press = softDrop
+    const board = document.getElementById('board');
+    if (board) {
+      let boardTouchId = null;
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchStartTime = 0;
+      let longPressTimer = null;
+      let moved = false;
+
+      const getTouchById = (touchList, id) => Array.from(touchList).find(t => t.identifier === id) || null;
+
+      board.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (this.engine.state.paused || this.engine.state.gameOver) return;
+        if (e.touches.length > 1) {
+          // ignore multi-touch on the board (allow system gestures)
+          return;
+        }
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        boardTouchId = touch.identifier;
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        touchStartTime = Date.now();
+        moved = false;
+        longPressTimer = setTimeout(() => {
+          this.state.active.softDrop = true;
+          if (navigator.vibrate) navigator.vibrate(10);
+        }, BOARD_LONG_PRESS_DELAY);
+      }, { passive: false });
+
+      board.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (boardTouchId === null) return;
+        const t = getTouchById(e.touches, boardTouchId);
+        if (!t) return;
+        const dx = t.clientX - touchStartX;
+        const dy = t.clientY - touchStartY;
+        if (Math.abs(dx) > BOARD_TAP_MAX_MOVE || Math.abs(dy) > BOARD_TAP_MAX_MOVE) {
+          moved = true;
+          if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        }
+        // horizontal drag -> snap move
+        if (Math.abs(dx) > BOARD_MOVE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+          const rect = board.getBoundingClientRect();
+          const col = getColumnFromClientX(t.clientX, rect);
+          if (col !== null) moveCurrentToColumn(col);
+        }
+      }, { passive: false });
+
+      board.addEventListener('touchend', (e) => {
+        if (boardTouchId === null) return;
+        const ended = Array.from(e.changedTouches).find(t => t.identifier === boardTouchId);
+        if (!ended) return;
+        e.preventDefault();
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        // stop soft drop if it was started
+        this.state.active.softDrop = false;
+
+        const dt = Date.now() - touchStartTime;
+        const dx = ended.clientX - touchStartX;
+        const dy = ended.clientY - touchStartY;
+        const movedDistance = Math.hypot(dx, dy);
+
+        if (!moved && dt <= BOARD_TAP_MAX_TIME && movedDistance <= BOARD_TAP_MAX_MOVE) {
+          const now = Date.now();
+          if (now - lastBoardTapTime <= 350) {
+            this.engine.action('rotate180');
+            lastBoardTapTime = 0;
+            if (navigator.vibrate) navigator.vibrate(25);
+          } else {
+            this.engine.action('rotateCW');
+            lastBoardTapTime = now;
+            if (navigator.vibrate) navigator.vibrate(10);
+          }
+        } else if (Math.abs(dy) > BOARD_SWIPE_THRESHOLD && dy > 0) {
+          // quick swipe down = hard drop
+          this.engine.action('hardDrop');
+          if (navigator.vibrate) navigator.vibrate(30);
+        } else if (Math.abs(dx) > BOARD_MOVE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+          // ended after horizontal drag -> snap to final column
+          const rect = board.getBoundingClientRect();
+          const col = getColumnFromClientX(ended.clientX, rect);
+          if (col !== null) moveCurrentToColumn(col);
+        }
+
+        boardTouchId = null;
+      }, { passive: false });
+
+      board.addEventListener('touchcancel', (e) => {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        this.state.active.softDrop = false;
+        boardTouchId = null;
+      }, { passive: false });
     }
   }
 
