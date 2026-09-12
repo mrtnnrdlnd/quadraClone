@@ -1,6 +1,8 @@
 class InputManager {
   constructor(engine) {
     this.engine = engine;
+    this.sliderTrack = null;
+    this.sliderThumb = null;
     this.keys = {
       left: 'ArrowLeft', right: 'ArrowRight', softDrop: 'ArrowDown',
       hardDrop: 'Space', rotateCW: 'ArrowUp', rotateCCW: 'KeyZ', rotate180: 'KeyA'
@@ -50,6 +52,65 @@ class InputManager {
     });
   }
 
+  getCurrentPieceXRange(piece = this.engine.state.current) {
+    if (!piece) return null;
+
+    const matrix = PRECALC_ROTATIONS[piece.type][piece.rot];
+    let minC = matrix[0].length;
+    let maxC = 0;
+
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c] !== 0) {
+          if (c < minC) minC = c;
+          if (c > maxC) maxC = c;
+        }
+      }
+    }
+
+    const allowedMin = -minC;
+    const allowedMax = CONFIG.COLS - 1 - maxC;
+    return {
+      allowedMin,
+      allowedMax,
+      range: Math.max(0, allowedMax - allowedMin)
+    };
+  }
+
+  setSliderVisual(columnIndex, metrics = this.getCurrentPieceXRange()) {
+    if (!this.sliderTrack || !this.sliderThumb) return;
+
+    const naturalTrackWidth = this.sliderTrack.offsetWidth || this.sliderTrack.getBoundingClientRect().width || 1;
+    const thumbNaturalWidth = this.sliderThumb.offsetWidth || 55;
+    const thumbRadius = thumbNaturalWidth / 2;
+
+    let progress = 0.5;
+    let naturalVisualX = naturalTrackWidth / 2;
+
+    if (metrics) {
+      const clampedColumn = Math.max(metrics.allowedMin, Math.min(columnIndex, metrics.allowedMax));
+      if (metrics.range > 0) {
+        progress = (clampedColumn - metrics.allowedMin) / metrics.range;
+      }
+      naturalVisualX = thumbRadius + progress * Math.max(0, naturalTrackWidth - 2 * thumbRadius);
+    }
+
+    this.sliderThumb.style.left = `${naturalVisualX}px`;
+    this.sliderThumb.style.transform = 'translateX(-50%)';
+    this.sliderTrack.style.setProperty('--slider-progress', `${Math.round(progress * 100)}%`);
+  }
+
+  syncSliderThumb() {
+    if (!this.sliderTrack || !this.sliderThumb) return;
+    if (!this.engine.state || !this.engine.state.current) {
+      this.setSliderVisual(0, null);
+      return;
+    }
+
+    const metrics = this.getCurrentPieceXRange();
+    this.setSliderVisual(this.engine.state.current.x, metrics);
+  }
+
   bindTouchEvents() {
     const btnMap = {
       'btn-rot-ccw': 'rotateCCW',
@@ -71,93 +132,64 @@ class InputManager {
     // Soft-drop button (continuous while held)
     const softBtn = document.getElementById('btn-soft-drop');
     if (softBtn) {
+      let softDropTouchId = null;
+      const isTrackedSoftDropTouch = (touchList) => Array.from(touchList).some(touch => touch.identifier === softDropTouchId);
+
       softBtn.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        if (!this.state.active.softDrop) {
-          this.state.active.softDrop = true;
-        }
+        if (softDropTouchId !== null) return;
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        softDropTouchId = touch.identifier;
+        this.state.active.softDrop = true;
       }, { passive: false });
-      softBtn.addEventListener('touchend', (e) => {
+
+      const stopSoftDrop = (e) => {
+        if (softDropTouchId === null || !isTrackedSoftDropTouch(e.changedTouches)) return;
         e.preventDefault();
+        softDropTouchId = null;
         this.state.active.softDrop = false;
-      }, { passive: false });
-      softBtn.addEventListener('touchcancel', (e) => {
-        e.preventDefault();
-        this.state.active.softDrop = false;
-      }, { passive: false });
+      };
+
+      softBtn.addEventListener('touchend', stopSoftDrop, { passive: false });
+      softBtn.addEventListener('touchcancel', stopSoftDrop, { passive: false });
     }
 
-    const sliderTrack = document.getElementById('slider-track');
-    const sliderThumb = document.getElementById('slider-thumb');
-    let activeTouchPieceId = -1;
+    this.sliderTrack = document.getElementById('slider-track');
+    this.sliderThumb = document.getElementById('slider-thumb');
+    let activeSliderTouchId = null;
+    let activeSliderPieceId = -1;
 
-    if (sliderTrack && sliderThumb) {
+    if (this.sliderTrack && this.sliderThumb) {
+      const getTouchById = (touchList, id) => Array.from(touchList).find(touch => touch.identifier === id) || null;
+
       const updateAbsolutePosition = (clientX) => {
         if (!this.engine.state.current || this.engine.state.paused) return;
 
-        const rect = sliderTrack.getBoundingClientRect();
+        const rect = this.sliderTrack.getBoundingClientRect();
         let touchX = clientX - rect.left;
         touchX = Math.max(0, Math.min(touchX, rect.width));
 
-        // Natural (unscaled) track width
-        const naturalTrackWidth = sliderTrack.offsetWidth || rect.width;
-        const thumbNaturalWidth = sliderThumb.offsetWidth || 55;
+        const naturalTrackWidth = this.sliderTrack.offsetWidth || rect.width;
+        const thumbNaturalWidth = this.sliderThumb.offsetWidth || 55;
         const thumbRadius = thumbNaturalWidth / 2;
-
-        // Scale factor between visual (client) rect and natural sizes
         const scale = rect.width / naturalTrackWidth || 1;
         const thumbRadiusScaled = thumbRadius * scale;
-
-        // Constrain touchX so the thumb center can't go beyond the visual track edges
         const constrainedX = Math.max(thumbRadiusScaled, Math.min(touchX, rect.width - thumbRadiusScaled));
-
-        // Normalized percent across usable area (excluding thumb radius on both ends)
         const usableScaledWidth = Math.max(1, rect.width - 2 * thumbRadiusScaled);
         const percentNormalized = (constrainedX - thumbRadiusScaled) / usableScaledWidth;
+        const cur = this.engine.state.current;
+        const metrics = this.getCurrentPieceXRange(cur);
+        if (!metrics) return;
 
-        // Spelmekanik: map normalized percent to allowed piece x-range
-        let cur = this.engine.state.current;
-        let matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
+        const columnIndex = metrics.range <= 0
+          ? metrics.allowedMin
+          : Math.round(metrics.allowedMin + percentNormalized * metrics.range);
 
-        let minC = 4, maxC = 0;
-        for(let r=0; r<matrix.length; r++) {
-          for(let c=0; c<matrix[r].length; c++) {
-            if(matrix[r][c] !== 0) {
-              if(c < minC) minC = c;
-              if(c > maxC) maxC = c;
-            }
-          }
-        }
-
-        const allowedMin = -minC;
-        const allowedMax = (CONFIG.COLS - 1 - maxC);
-        const range = Math.max(0, allowedMax - allowedMin);
-
-        // Snap to nearest column index for stable behavior
-        let columnIndex;
-        if (range <= 0) {
-          columnIndex = allowedMin;
-        } else {
-          columnIndex = Math.round(allowedMin + percentNormalized * range);
-        }
-
-        // Position thumb at the center of the snapped column (natural pixels)
-        let naturalVisualX;
-        if (range <= 0) {
-          naturalVisualX = naturalTrackWidth / 2;
-        } else {
-          const t = (columnIndex - allowedMin) / range; // 0..1
-          naturalVisualX = thumbRadius + t * Math.max(0, (naturalTrackWidth - 2 * thumbRadius));
-        }
-
-        sliderThumb.style.left = `${naturalVisualX}px`;
-        sliderThumb.style.transform = `translateX(-50%)`;
-
-        // Move piece toward the snapped column
         const targetX = columnIndex;
         let safety = 0;
         while (cur.x < targetX && safety < 10) {
-          let prevX = cur.x;
+          const prevX = cur.x;
           this.engine.action('right');
           if (cur.x === prevX) break;
           safety++;
@@ -165,38 +197,50 @@ class InputManager {
 
         safety = 0;
         while (cur.x > targetX && safety < 10) {
-          let prevX = cur.x;
+          const prevX = cur.x;
           this.engine.action('left');
           if (cur.x === prevX) break;
           safety++;
         }
+
+        this.syncSliderThumb();
       };
 
-      sliderTrack.addEventListener('touchstart', (e) => {
+      this.sliderTrack.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        activeTouchPieceId = this.engine.state.pieceIdCtr;
-        updateAbsolutePosition(e.touches[0].clientX);
+        if (activeSliderTouchId !== null) return;
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        activeSliderTouchId = touch.identifier;
+        activeSliderPieceId = this.engine.state.pieceIdCtr;
+        updateAbsolutePosition(touch.clientX);
       }, { passive: false });
 
-      sliderTrack.addEventListener('touchmove', (e) => {
+      this.sliderTrack.addEventListener('touchmove', (e) => {
         e.preventDefault();
-        if (this.engine.state.paused) return;
-        updateAbsolutePosition(e.touches[0].clientX);
+        if (this.engine.state.paused || activeSliderTouchId === null) return;
+        const touch = getTouchById(e.touches, activeSliderTouchId);
+        if (!touch) return;
+        updateAbsolutePosition(touch.clientX);
       }, { passive: false });
 
       const endHandler = (e) => {
+        if (activeSliderTouchId === null) return;
+        const endedTouch = getTouchById(e.changedTouches, activeSliderTouchId);
+        if (!endedTouch) return;
         e.preventDefault();
-        if (this.engine.state.paused) return;
+        const shouldHardDrop = e.type === 'touchend' && !this.engine.state.paused && this.engine.state.pieceIdCtr === activeSliderPieceId;
+        activeSliderTouchId = null;
+        activeSliderPieceId = -1;
 
-        if (this.engine.state.pieceIdCtr === activeTouchPieceId) {
+        if (shouldHardDrop) {
           this.engine.action('hardDrop');
         }
-
-        // Keep the thumb at the snapped position after release
+        this.syncSliderThumb();
       };
 
-      sliderTrack.addEventListener('touchend', endHandler, { passive: false });
-      sliderTrack.addEventListener('touchcancel', endHandler, { passive: false });
+      this.sliderTrack.addEventListener('touchend', endHandler, { passive: false });
+      this.sliderTrack.addEventListener('touchcancel', endHandler, { passive: false });
     }
   }
 

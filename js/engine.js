@@ -91,6 +91,10 @@ class QuadraEngine {
         this.triggerGameOver();
       }
     }
+
+    if (this.input && this.input.syncSliderThumb) {
+      this.input.syncSliderThumb();
+    }
   }
 
   checkCollision(tx, ty, tRot, type = this.state.current.type) {
@@ -272,6 +276,10 @@ class QuadraEngine {
         while (!this.checkCollision(cur.x, cur.y + 1, cur.rot)) { cur.y++; this.state.score += 2; }
         this.lockPiece();
         break;
+    }
+
+    if (this.input && this.input.syncSliderThumb) {
+      this.input.syncSliderThumb();
     }
   }
 
