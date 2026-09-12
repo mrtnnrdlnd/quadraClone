@@ -99,8 +99,11 @@ function resizeGame() {
   const naturalWidth = wrapper.offsetWidth || 250; // fall back to prior assumed sizes
   const naturalHeight = wrapper.offsetHeight || 700;
 
-  // Compute a scale that fits the visual viewport while keeping aspect ratio
-  const scale = Math.min(1, vw / naturalWidth, vh / naturalHeight);
+  // Compute a scale that fits the visual viewport while keeping aspect ratio.
+  // On mobile we also allow upscaling so the game can fill more of the screen.
+  const fitScale = Math.min(vw / naturalWidth, vh / naturalHeight);
+  const maxScale = vw <= 768 ? 2 : 1;
+  const scale = Math.max(0.1, Math.min(maxScale, fitScale));
 
   // Apply the new scale
   wrapper.style.transform = `scale(${scale})`;
