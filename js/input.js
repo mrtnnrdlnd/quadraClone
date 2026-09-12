@@ -409,7 +409,9 @@ class InputManager {
 
         // Map to board column (0..COLS-1) so each interval is one block
         const boardCols = Math.max(1, CONFIG.COLS);
-        let boardCol = Math.floor(pct * boardCols);
+        // Map pointer to the nearest block center (centers at (i+0.5)/cols).
+        // Compute nearest center by subtracting 0.5 before flooring, then clamp to valid range.
+        let boardCol = Math.floor(pct * boardCols - 0.5);
         if (boardCol < 0) boardCol = 0;
         if (boardCol >= boardCols) boardCol = boardCols - 1;
 
