@@ -1,5 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Macondo&display=swap');
 
+:root {
+  /* 1% of the visual viewport height — kept up-to-date from JS to avoid mobile address-bar issues */
+  --vh: 1vh;
+}
+
 body {
   background: #111;
   background-image: radial-gradient(circle at 50% 50%, #222 0%, #000 100%);
@@ -9,8 +14,12 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  /* Use the dynamic --vh unit (set from JS) so the layout fills the visible screen on mobile
+     without being affected by browser chrome appearing/disappearing */
+  height: calc(var(--vh) * 100);
   margin: 0;
+  /* Respect device safe areas (notch/home indicator) while still using the full screen */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   user-select: none;
   overflow: hidden;
 }
