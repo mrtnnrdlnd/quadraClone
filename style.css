@@ -335,9 +335,10 @@ input[type=range] {
 }
 
 .rot-buttons button:focus-visible {
-  outline: none;
+  outline: 2px solid #7afcff;
+  outline-offset: 2px;
   border-color: #00c3c3;
-  box-shadow: 0 0 0 2px rgba(0, 195, 195, 0.22), inset 0 0 0 1px rgba(0, 195, 195, 0.18);
+  box-shadow: 0 0 0 3px rgba(0, 195, 195, 0.28), inset 0 0 0 1px rgba(0, 195, 195, 0.18);
 }
 
 /* Soft-drop button: placed with rotations on the left, active while pressed */
