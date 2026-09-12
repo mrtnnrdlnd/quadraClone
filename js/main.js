@@ -1,4 +1,6 @@
 window.game = new QuadraEngine();
+const MOBILE_BREAKPOINT = 768;
+const MOBILE_MAX_SCALE = 2;
 
 function updateVh() {
   // Use the visual viewport height on mobile when available (avoids address-bar issues)
@@ -24,7 +26,7 @@ function resizeGame() {
   const sliderTrack = document.getElementById('slider-track');
   const mobileSlider = document.querySelector('.mobile-slider');
 
-  if (sliderTrack && board && vw <= 768) {
+  if (sliderTrack && board && vw <= MOBILE_BREAKPOINT) {
     // Use board's bounding rect (natural coords while transform is removed) so width/left
     // are consistent when aligning the slider and stats
     const wrapperRect = wrapper.getBoundingClientRect();
@@ -99,8 +101,11 @@ function resizeGame() {
   const naturalWidth = wrapper.offsetWidth || 250; // fall back to prior assumed sizes
   const naturalHeight = wrapper.offsetHeight || 700;
 
-  // Compute a scale that fits the visual viewport while keeping aspect ratio
-  const scale = Math.min(1, vw / naturalWidth, vh / naturalHeight);
+  // Compute a scale that fits the visual viewport while keeping aspect ratio.
+  // On mobile we also allow upscaling so the game can fill more of the screen.
+  const fitScale = Math.min(vw / naturalWidth, vh / naturalHeight);
+  const maxScale = vw <= MOBILE_BREAKPOINT ? MOBILE_MAX_SCALE : 1;
+  const scale = Math.max(0.1, Math.min(maxScale, fitScale));
 
   // Apply the new scale
   wrapper.style.transform = `scale(${scale})`;
