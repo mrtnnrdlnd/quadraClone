@@ -282,7 +282,7 @@ input[type=range] {
   width: 100%;
   max-width: 360px;
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 0;
   padding: 4px 0;
   z-index: 20;
 }
@@ -354,55 +354,117 @@ input[type=range] {
   width: 100%;
   max-width: 360px;
   height: 55px;
-  background:
-    linear-gradient(90deg, rgba(0, 195, 195, 0.24) 0, rgba(0, 195, 195, 0.24) var(--slider-progress), rgba(255, 255, 255, 0.06) var(--slider-progress), rgba(255, 255, 255, 0.06) 100%),
-    linear-gradient(180deg, #2c3138 0%, #16191d 100%);
+  background-color: #1b1d1f; /* flat, simple background */
   border: 1px solid #3c464d;
-  border-radius: 27px;
+  border-radius: 0; /* no rounded corners */
   position: relative;
   touch-action: none;
   margin: 0 auto;
-  overflow: hidden;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55), 0 0 12px rgba(0, 195, 195, 0.16);
+  overflow: visible;
 }
 
-.slider-track::before {
-  content: '';
+/* Flat inner track and progress fill (no gradients) */
+.slider-fill {
   position: absolute;
-  left: 16px;
-  right: 16px;
+  left: 0;
+  right: 0;
   top: 50%;
-  height: 7px;
   transform: translateY(-50%);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.32);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  height: 8px;
+  background: #111;
+  border-radius: 0; /* square corners */
+  pointer-events: none;
+  z-index: 1;
 }
 
-.slider-track::after {
-  content: '';
-  position: absolute;
-  top: 9px;
-  bottom: 9px;
-  left: 50%;
-  width: 1px;
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateX(-50%);
+.slider-fill .slider-progress {
+  display: none; /* no left-filled progress; we show a movable piece thumb instead */
 }
+
+/* Discrete step markers */
+.slider-steps {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+	/* Intervals: one per board column. heights are adjusted dynamically via JS */
+	.slider-steps .interval {
+	  position: absolute;
+	  top: 50%;
+	  transform: translateY(-50%);
+	  height: 18px; /* base height, JS will override inline when pointer present */
+	  background: transparent;
+	  border-left: 1px solid #2f2f2f; /* separator line between intervals */
+	  box-sizing: border-box;
+	  transition: height 120ms linear, border-left-color 120ms linear, background-color 120ms linear;
+	  pointer-events: none;
+	}
+
+	/* Make first interval show a left edge at the extreme left */
+	.slider-steps .interval:first-child {
+	  border-left: 1px solid #2f2f2f;
+	}
+
+	/* Active interval visual (when covered by the piece) */
+	.slider-steps .interval.active {
+	  border-left-color: #00c3c3;
+	}
+
+	/* Range overlay (light shadow) that fills the covered intervals */
+	.slider-range {
+	  position: absolute;
+	  left: 0;
+	  top: 50%;
+	  transform: translateY(-50%);
+	  height: 10px;
+	  background: rgba(0, 195, 195, 0.10);
+	  box-shadow: inset 0 3px 10px rgba(0,195,195,0.06);
+	  border-radius: 0; /* square */
+	  pointer-events: none;
+	  z-index: 1; /* sits above fill but under interval markers */
+	}
+
+	/* rightmost edge visible */
+	.slider-steps::after {
+	  content: '';
+	  position: absolute;
+	  right: 0;
+	  top: 50%;
+	  transform: translateY(-50%);
+	  width: 1px;
+	  height: 28px;
+	  background: #2f2f2f;
+	  z-index: 2;
+	}
 
 .slider-thumb {
-  width: 55px;
-  height: 55px;
-  background:
-    radial-gradient(circle at 35% 30%, #9effff 0%, #3be1e1 32%, #00b9b9 68%, #007f7f 100%);
-  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  background: transparent;
+  border-radius: 0; /* square */
   position: absolute;
   left: 50%;
-  top: -1px;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
   pointer-events: none;
-  border: 2px solid rgba(220, 255, 255, 0.72);
-  box-shadow: 0 0 16px rgba(0, 195, 195, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
+  border: none;
+  box-shadow: none;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
+.slider-thumb canvas.slider-thumb-canvas {
+  display: none; /* block preview removed */
 }
 
 @media (max-width: 768px) {
@@ -412,7 +474,7 @@ input[type=range] {
   }
 
   .game-wrapper {
-    gap: 4px;
+    gap: 0; /* remove gap so slider can sit flush under board */
     transform-origin: top center;
   }
 
