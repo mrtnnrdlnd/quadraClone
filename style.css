@@ -116,24 +116,12 @@ canvas#board {
 .mini-canvas {}
 
 .settings-btn {
-  position: fixed;
-  bottom: calc(env(safe-area-inset-bottom) + 12px);
-  right: calc(env(safe-area-inset-right) + 12px);
   background: #000;
   border: 1px solid #00e5ff;
   color: #00e5ff;
-  padding: 0;
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 8px 12px;
   font-family: inherit;
   cursor: pointer;
-  z-index: 99999; /* ensure button is above everything */
-  touch-action: manipulation;
-  pointer-events: auto;
-  border-radius: 8px;
 }
 
 .settings-btn:hover {
@@ -141,8 +129,30 @@ canvas#board {
   color: #000;
 }
 
+/* Floating top-right settings button (ID-specific so modal buttons keep normal styling) */
+#settings-btn {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + 12px);
+  right: calc(env(safe-area-inset-right) + 12px);
+  padding: 0;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999; /* ensure button is above everything */
+  touch-action: manipulation;
+  pointer-events: auto;
+  border-radius: 8px;
+}
+
+#settings-btn:hover {
+  background: #00e5ff;
+  color: #000;
+}
+
 .modal-overlay {
-  position: absolute;
+  position: fixed; /* ensure the modal overlays the viewport even when other elements are transformed */
   top: 0;
   left: 0;
   width: 100%;
@@ -151,7 +161,10 @@ canvas#board {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 100;
+  z-index: 100000; /* sit above all other UI */
+  touch-action: auto; /* allow touches inside the modal */
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hidden {
@@ -547,11 +560,13 @@ input[type=range] {
     font-size: clamp(13px, 3.2vw, 14px);
   }
 
-  .settings-btn {
+  #settings-btn {
     top: 5px;
     right: 5px;
     bottom: auto;
     padding: 5px 8px;
+    width: auto;
+    height: auto;
     font-size: 12px;
   }
 }

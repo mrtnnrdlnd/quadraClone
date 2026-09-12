@@ -129,40 +129,29 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('scroll', () => { updateVh(); resizeGame(); });
 }
 
-// Ensure settings button is reliably tappable on devices that may capture touch events.
-// Install a capturing touch/pointer handler that triggers the settings toggle when the user
-// touches the visible button area. This prevents other handlers from intercepting the touch.
+// Ensure settings button is reliably tappable and avoid double-toggle issues by
+// attaching direct handlers to the button and throttling repeated events.
 (function ensureSettingsTouch() {
-  const settingsBtn = document.getElementById('settings-btn');
-  if (!settingsBtn) return;
-  const toggleHit = (x, y) => {
-    const rect = settingsBtn.getBoundingClientRect();
-    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-  };
+  const btn = document.getElementById('settings-btn');
+  if (!btn) return;
+  let lastToggleAt = 0;
+  const THROTTLE_MS = 400;
 
-  const touchHandler = (e) => {
-    if (!e.changedTouches || e.changedTouches.length === 0) return;
-    const t = e.changedTouches[0];
-    if (toggleHit(t.clientX, t.clientY)) {
+  const doToggle = (e) => {
+    const now = Date.now();
+    if (now - lastToggleAt < THROTTLE_MS) {
       try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
-      if (window.game && typeof window.game.toggleSettings === 'function') {
-        window.game.toggleSettings();
-      }
-      e.stopPropagation();
+      try { if (e && e.stopPropagation) e.stopPropagation(); } catch (err) {}
+      return;
     }
+    lastToggleAt = now;
+    try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
+    if (window.game && typeof window.game.toggleSettings === 'function') window.game.toggleSettings();
+    try { if (e && e.stopPropagation) e.stopPropagation(); } catch (err) {}
   };
-  document.addEventListener('touchstart', touchHandler, { passive: false, capture: true });
 
-  // pointerdown fallback (covers some devices / browsers)
-  const pointerHandler = (e) => {
-    if (e.pointerType && e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
-    if (toggleHit(e.clientX, e.clientY)) {
-      try { e.preventDefault(); } catch (err) {}
-      if (window.game && typeof window.game.toggleSettings === 'function') {
-        window.game.toggleSettings();
-      }
-      e.stopPropagation();
-    }
-  };
-  document.addEventListener('pointerdown', pointerHandler, { capture: true });
+  // pointerdown covers mouse/touch/pen on modern browsers
+  btn.addEventListener('pointerdown', doToggle, { passive: false });
+  // Provide a click fallback for environments where pointer events aren't available
+  btn.addEventListener('click', doToggle);
 })();

@@ -438,8 +438,19 @@ class QuadraEngine {
 
   toggleSettings() {
     this.state.paused = !this.state.paused;
-    document.getElementById('settingsModal').classList.toggle('hidden');
+    const modal = document.getElementById('settingsModal');
+    if (modal) {
+      modal.classList.toggle('hidden');
+      // Make sure modal is positioned above everything and can receive touch events
+      try { modal.style.zIndex = '100000'; modal.style.pointerEvents = 'auto'; } catch (e) {}
+    }
+
+    // While modal is open, prevent background interaction (helpful on mobile where transforms may interfere)
+    const wrapper = document.querySelector('.game-wrapper');
     if (this.state.paused) {
+      try { document.body.style.overflow = 'hidden'; } catch (e) {}
+      if (wrapper) wrapper.style.pointerEvents = 'none';
+
       this.renderer.renderSettings(this.input.keys, (action, btn) => this.input.startBinding(action, btn), this.cfg, (k, v) => {
         this.cfg[k] = v;
         this.saveSettings();
@@ -447,16 +458,26 @@ class QuadraEngine {
       });
       ['DAS','ARR','Gravity','SoftDrop'].forEach(id => {
         const val = id==='Gravity'?this.cfg.baseGravity:id==='SoftDrop'?this.cfg.softDropSpeed:this.cfg[id.toLowerCase()];
-        document.getElementById(`range${id}`).value = val; document.getElementById(`val${id}`).innerText = val;
+        const rangeEl = document.getElementById(`range${id}`);
+        const valEl = document.getElementById(`val${id}`);
+        if (rangeEl) rangeEl.value = val;
+        if (valEl) valEl.innerText = val;
       });
     } else {
+      // closing
+      try { document.body.style.overflow = ''; } catch (e) {}
+      if (wrapper) wrapper.style.pointerEvents = '';
       this.state.lastTime = performance.now();
       this.input.state.bindingAction = null;
       Object.keys(this.input.state.active).forEach(k => this.input.state.active[k] = false);
-      this.cfg.das = parseInt(document.getElementById('rangeDAS').value);
-      this.cfg.arr = parseInt(document.getElementById('rangeARR').value);
-      this.cfg.baseGravity = parseInt(document.getElementById('rangeGravity').value);
-      this.cfg.softDropSpeed = parseInt(document.getElementById('rangeSoftDrop').value);
+      const rangeDAS = document.getElementById('rangeDAS');
+      const rangeARR = document.getElementById('rangeARR');
+      const rangeGravity = document.getElementById('rangeGravity');
+      const rangeSoftDrop = document.getElementById('rangeSoftDrop');
+      if (rangeDAS) this.cfg.das = parseInt(rangeDAS.value);
+      if (rangeARR) this.cfg.arr = parseInt(rangeARR.value);
+      if (rangeGravity) this.cfg.baseGravity = parseInt(rangeGravity.value);
+      if (rangeSoftDrop) this.cfg.softDropSpeed = parseInt(rangeSoftDrop.value);
       this.saveSettings();
     }
   }
