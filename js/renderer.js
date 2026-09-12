@@ -67,6 +67,80 @@ class Renderer {
     if(el) el.innerText = value;
   }
 
+  // Render a small preview of a piece (used for button icons)
+  renderButtonPreview(canvas, pieceType, rot) {
+    if (!canvas || !pieceType) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+
+    // Preferred CSS size: use clientWidth/clientHeight so we don't pick up transform scaling
+    let cssW = canvas.clientWidth || parseFloat(canvas.style.width) || (canvas.width ? canvas.width / dpr : 36);
+    let cssH = canvas.clientHeight || parseFloat(canvas.style.height) || (canvas.height ? canvas.height / dpr : 36);
+    cssW = Math.max(1, Math.round(cssW));
+    cssH = Math.max(1, Math.round(cssH));
+
+    // Determine buffer size in device pixels, clamp to safe maximum
+    const MAX_CANVAS_PX = 2048;
+    let bufW = Math.round(cssW * dpr);
+    let bufH = Math.round(cssH * dpr);
+    if (!bufW || !bufH) { bufW = bufH = 64; }
+    bufW = Math.max(1, Math.min(bufW, MAX_CANVAS_PX));
+    bufH = Math.max(1, Math.min(bufH, MAX_CANVAS_PX));
+
+    canvas.width = bufW;
+    canvas.height = bufH;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+
+    // Map CSS units to buffer pixels
+    const scaleX = bufW / Math.max(1, cssW);
+    const scaleY = bufH / Math.max(1, cssH);
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+
+    // Clear in CSS coordinate space (transform will map to buffer)
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const matrix = (PRECALC_ROTATIONS[pieceType] && PRECALC_ROTATIONS[pieceType][rot]) ? PRECALC_ROTATIONS[pieceType][rot] : CONFIG.BASE_SHAPES[pieceType];
+    if (!matrix) return;
+
+    // Compute bounding box of occupied cells
+    let minR = matrix.length, maxR = 0, minC = matrix[0].length, maxC = 0;
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c] !== 0) {
+          minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+          minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+        }
+      }
+    }
+    const cols = Math.max(1, maxC - minC + 1);
+    const rows = Math.max(1, maxR - minR + 1);
+
+    // Determine block size with padding (in CSS units)
+    const padding = Math.floor(Math.min(cssW, cssH) * 0.12);
+    const blockSize = Math.max(1, Math.floor(Math.min((cssW - padding * 2) / cols, (cssH - padding * 2) / rows)));
+    const ox = Math.round((cssW - blockSize * cols) / 2);
+    const oy = Math.round((cssH - blockSize * rows) / 2);
+
+    // Draw blocks using ghost color so they look like a shadow
+    const color = CONFIG.COLORS.GHOST;
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c] !== 0) {
+          const drawX = ox + (c - minC) * blockSize;
+          const drawY = oy + (r - minR) * blockSize;
+          const edges = {
+            top: r === 0 || matrix[r-1][c] === 0,
+            bottom: r === matrix.length-1 || matrix[r+1][c] === 0,
+            left: c === 0 || matrix[r][c-1] === 0,
+            right: c === matrix[r].length-1 || matrix[r][c+1] === 0
+          };
+          this.drawBlock(ctx, drawX, drawY, blockSize, color, edges);
+        }
+      }
+    }
+  }
+
   draw(state, engine) {
     this.ctx.clearRect(0, 0, 240, 480);
     const { grid, isFlashing, flashTimer, pendingRows, isCascading, fragments, current } = state;
@@ -173,9 +247,48 @@ class Renderer {
     document.getElementById('gameOverScreen').classList.remove('hidden');
   }
 
-  renderSettings(keys, bindCallback) {
+  renderSettings(keys, bindCallback, cfg, cfgChangeCallback) {
     const list = document.getElementById('controlsList');
     list.innerHTML = '';
+
+    // Control mode selector (rotation vs orientation)
+    const modeRow = document.createElement('div');
+    modeRow.style.marginBottom = '12px';
+    const modeLabel = document.createElement('div'); modeLabel.className = 'setting-label';
+    modeLabel.innerHTML = '<span>Control buttons</span><span></span>';
+    modeRow.appendChild(modeLabel);
+
+    const opts = document.createElement('div');
+    opts.style.display = 'flex'; opts.style.gap = '8px';
+    opts.style.justifyContent = 'flex-start';
+    opts.style.marginBottom = '8px';
+
+    const modes = [
+      { v: 'rotation', t: 'Rotation buttons' },
+      { v: 'orientation', t: 'Orientation buttons' }
+    ];
+
+    modes.forEach(m => {
+      const id = `controlMode-${m.v}`;
+      const wrapper = document.createElement('label');
+      wrapper.style.display = 'inline-flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.gap = '6px';
+      const input = document.createElement('input');
+      input.type = 'radio'; input.name = 'controlMode'; input.value = m.v; input.id = id;
+      const cur = (cfg && cfg.controlMode) ? cfg.controlMode : 'rotation';
+      if (cur === m.v) input.checked = true;
+      input.addEventListener('change', (e) => {
+        if (e.target.checked && typeof cfgChangeCallback === 'function') cfgChangeCallback('controlMode', m.v);
+      });
+      const span = document.createElement('span'); span.innerText = m.t; span.style.fontSize = '13px';
+      wrapper.appendChild(input); wrapper.appendChild(span);
+      opts.appendChild(wrapper);
+    });
+    modeRow.appendChild(opts);
+    list.appendChild(modeRow);
+
+    // Key binding rows
     Object.keys(keys).forEach(action => {
       const r = document.createElement('div'); r.className = 'control-row';
       const lbl = document.createElement('span'); lbl.innerText = CONFIG.TRANSLATIONS[action];

@@ -1,12 +1,15 @@
 class QuadraEngine {
   constructor() {
     this.renderer = new Renderer();
-    this.input = new InputManager(this);
+    // User-configurable options (loaded later will override these)
+    this.cfg = { baseGravity: 1, softDropSpeed: 20, das: 150, arr: 30, controlMode: 'rotation' };
+
+
+
     this.stats = {
       pieces: { O:0, I:0, Z:0, J:0, L:0, S:0, T:0, Total:0 },
       clears: { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0, 13:0, 14:0, more:0, Total:0 }
     };
-    this.cfg = { baseGravity: 1, softDropSpeed: 20, das: 150, arr: 30 };
     this.state = {
       grid: Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(0)),
       bag: [], score: 0, lines: 0, level: 1, pieceIdCtr: 1, gameOver: false, paused: false,
@@ -18,7 +21,9 @@ class QuadraEngine {
       placementTimestamps: []
     };
     this.tempVisited = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(false));
+    this.input = new InputManager(this);
     this.loadSettings();
+    if (this.input && typeof this.input.setupMobileControls === 'function') this.input.setupMobileControls();
     this.renderer.drawMiniPieces();
     for(let i=0; i<3; i++) this.state.nextQueue.push({ type: this.getBagPiece(), rot: 0 });
     this.spawnNext();
@@ -106,6 +111,7 @@ class QuadraEngine {
     if (this.input && this.input.syncSliderThumb) {
       this.input.syncSliderThumb();
     }
+    if (this.input && typeof this.input.updateMobilePreviews === 'function') this.input.updateMobilePreviews();
   }
 
   checkCollision(tx, ty, tRot, type = this.state.current.type) {
@@ -263,6 +269,35 @@ class QuadraEngine {
     this.renderer.showGameOver(this.state.score, this.state.lines, this.state.level, this.state.gameTimeMs, this.stats.pieces.Total);
   }
 
+  // Try to rotate current piece by a delta (1=cw, 3=ccw, 2=180). Returns true if rotation applied.
+  applyRotationDelta(delta) {
+    if (!this.state.current) return false;
+    const cur = this.state.current;
+    const nRot = (cur.rot + delta) % 4;
+    for (let k of CONFIG.KICKS) {
+      if (!this.checkCollision(cur.x + k.x, cur.y + k.y, nRot)) {
+        cur.rot = nRot; cur.x += k.x; cur.y += k.y;
+        this.updateGhostY();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Try to rotate current piece to an absolute rotation (0..3). Returns true if applied.
+  tryRotateTo(nRot) {
+    if (!this.state.current) return false;
+    const cur = this.state.current;
+    for (let k of CONFIG.KICKS) {
+      if (!this.checkCollision(cur.x + k.x, cur.y + k.y, nRot)) {
+        cur.rot = nRot; cur.x += k.x; cur.y += k.y;
+        this.updateGhostY();
+        return true;
+      }
+    }
+    return false;
+  }
+
   action(type) {
     if (!this.state.current || this.state.gameOver || this.state.paused) return;
     const cur = this.state.current;
@@ -277,14 +312,25 @@ class QuadraEngine {
       case 'rotateCCW':
       case 'rotate180': {
         const rotMap = { 'rotateCW': 1, 'rotateCCW': 3, 'rotate180': 2 };
-        const nRot = (cur.rot + rotMap[type]) % 4;
-        for (let k of CONFIG.KICKS) {
-          if (!this.checkCollision(cur.x + k.x, cur.y + k.y, nRot)) {
-            cur.rot = nRot; cur.x += k.x; cur.y += k.y;
-            this.updateGhostY();
-            break;
-          }
+        this.applyRotationDelta(rotMap[type]);
+        break;
+      }
+      case 'orient0':
+      case 'orient1':
+      case 'orient2':
+      case 'orient3': {
+        const target = parseInt(type.charAt(type.length - 1), 10);
+        if (isNaN(target)) break;
+        // Try direct rotation first
+        if (this.tryRotateTo(target)) break;
+        // Fallback: attempt clockwise steps up to delta times; revert on failure
+        const original = { x: cur.x, y: cur.y, rot: cur.rot };
+        const delta = (target - original.rot + 4) % 4;
+        let success = true;
+        for (let i = 0; i < delta; i++) {
+          if (!this.applyRotationDelta(1)) { success = false; break; }
         }
+        if (!success) { cur.x = original.x; cur.y = original.y; cur.rot = original.rot; this.updateGhostY(); }
         break;
       }
       case 'hardDrop':
@@ -296,6 +342,7 @@ class QuadraEngine {
     if (this.input && this.input.syncSliderThumb) {
       this.input.syncSliderThumb();
     }
+    if (this.input && typeof this.input.updateMobilePreviews === 'function') this.input.updateMobilePreviews();
   }
 
   update(dt) {
@@ -393,7 +440,11 @@ class QuadraEngine {
     this.state.paused = !this.state.paused;
     document.getElementById('settingsModal').classList.toggle('hidden');
     if (this.state.paused) {
-      this.renderer.renderSettings(this.input.keys, (action, btn) => this.input.startBinding(action, btn));
+      this.renderer.renderSettings(this.input.keys, (action, btn) => this.input.startBinding(action, btn), this.cfg, (k, v) => {
+        this.cfg[k] = v;
+        this.saveSettings();
+        if (k === 'controlMode' && this.input && typeof this.input.setupMobileControls === 'function') this.input.setupMobileControls();
+      });
       ['DAS','ARR','Gravity','SoftDrop'].forEach(id => {
         const val = id==='Gravity'?this.cfg.baseGravity:id==='SoftDrop'?this.cfg.softDropSpeed:this.cfg[id.toLowerCase()];
         document.getElementById(`range${id}`).value = val; document.getElementById(`val${id}`).innerText = val;

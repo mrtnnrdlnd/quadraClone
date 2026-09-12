@@ -8,6 +8,11 @@ class InputManager {
       hardDrop: 'Space', rotateCW: 'ArrowUp', rotateCCW: 'KeyZ', rotate180: 'KeyA'
     };
     this.state = { active: {}, lastDir: null, dasTimer: 0, arrTimer: 0, bindingAction: null };
+
+    // For managing dynamically created mobile control listeners so we can refresh them
+    this._mobileDocHandlers = [];
+    this._mobileBtnEls = [];
+
     this.bindEvents();
     this.bindTouchEvents();
   }
@@ -19,7 +24,7 @@ class InputManager {
         this.keys[this.state.bindingAction] = e.code;
         this.state.bindingAction = null;
         this.engine.saveSettings();
-        this.engine.renderer.renderSettings(this.keys, (action, btn) => this.startBinding(action, btn));
+        this.engine.renderer.renderSettings(this.keys, (action, btn) => this.startBinding(action, btn), this.engine.cfg, (k, v) => { this.engine.cfg[k] = v; this.engine.saveSettings(); if (k === 'controlMode' && typeof this.setupMobileControls === 'function') this.setupMobileControls(); });
         return;
       }
       if (e.code === 'Escape' && this.engine.state.paused) return this.engine.toggleSettings();
@@ -215,97 +220,108 @@ class InputManager {
     this.setSliderVisual(this.engine.state.current.x, metrics);
   }
 
+  // Build or refresh the mobile rotation/orientation buttons based on engine.cfg.controlMode
+  setupMobileControls() {
+    // remove any previously attached document-level mouseup handlers
+    if (this._mobileDocHandlers && this._mobileDocHandlers.length) {
+      this._mobileDocHandlers.forEach(h => document.removeEventListener('mouseup', h));
+      this._mobileDocHandlers = [];
+    }
+    // clear stored button refs
+    this._mobileBtnEls = [];
 
+    const rotContainer = document.querySelector('.rot-buttons');
+    if (!rotContainer) return;
+    rotContainer.innerHTML = '';
 
-  bindTouchEvents() {
-    const btnMap = {
-      'btn-rot-ccw': 'rotateCCW',
-      'btn-rot-180': 'rotate180',
-      'btn-rot-cw': 'rotateCW'
-    };
+    const controlMode = (this.engine && this.engine.cfg && this.engine.cfg.controlMode) ? this.engine.cfg.controlMode : 'rotation';
 
-    // Repeat timings for held rotations
-    const ROT_REPEAT_INITIAL = 250; // ms before repeat starts
-    const ROT_REPEAT_INTERVAL = 120; // ms between repeats
-
-    // Board gesture thresholds
-    const BOARD_TAP_MAX_MOVE = 30; // px
-    const BOARD_TAP_MAX_TIME = 250; // ms
-    const BOARD_LONG_PRESS_DELAY = 300; // ms
-    const BOARD_SWIPE_THRESHOLD = 60; // px (for swipe down hard drop)
-    const BOARD_MOVE_THRESHOLD = 12; // px (horizontal drag to move)
-    const HAPTIC_TAP = 6;
-    const HAPTIC_ROTATE_REPEAT = 4;
-    const HAPTIC_LONG_PRESS = 6;
-    const HAPTIC_DOUBLE_TAP = 16;
-    const HAPTIC_HARD_DROP = 18;
-    let lastBoardTapTime = 0;
+    // Haptics helper
     const triggerHaptic = (duration) => {
       if (duration > 0 && navigator.vibrate) navigator.vibrate(duration);
     };
 
-    // Helper: map clientX inside a rect to an allowed column for the current piece
-    const getColumnFromClientX = (clientX, rect) => {
-      if (!this.engine.state.current) return null;
-      const metrics = this.getCurrentPieceXRange(this.engine.state.current);
-      if (!metrics) return null;
-      let touchX = clientX - rect.left;
-      touchX = Math.max(0, Math.min(touchX, rect.width));
-      const percentNormalized = rect.width <= 0 ? 0.5 : (touchX / rect.width);
-      const columnIndex = metrics.range <= 0 ? metrics.allowedMin : Math.round(metrics.allowedMin + percentNormalized * metrics.range);
-      return Math.max(metrics.allowedMin, Math.min(columnIndex, metrics.allowedMax));
-    };
+    // Rotation repeat settings (for the rotate buttons)
+    const ROT_REPEAT_INITIAL = 250;
+    const ROT_REPEAT_INTERVAL = 120;
+    const HAPTIC_TAP = 6;
+    const HAPTIC_ROTATE_REPEAT = 4;
 
-    const moveCurrentToColumn = (targetX) => {
-      const cur = this.engine.state.current;
-      if (!cur) return;
-      let safety = 0;
-      while (cur.x < targetX && safety < 12) {
-        const prevX = cur.x;
-        this.engine.action('right');
-        if (cur.x === prevX) break;
-        safety++;
-      }
-      safety = 0;
-      while (cur.x > targetX && safety < 12) {
-        const prevX = cur.x;
-        this.engine.action('left');
-        if (cur.x === prevX) break;
-        safety++;
-      }
-      if (this.syncSliderThumb) this.syncSliderThumb();
-    };
+    if (controlMode === 'orientation') {
+      // Create 4 orientation buttons (absolute orientations) with preview canvases
+      const orientations = [
+        { id: 'btn-orient-0', label: '↑', action: 'orient0', aria: 'Orientation Up' },
+        { id: 'btn-orient-1', label: '→', action: 'orient1', aria: 'Orientation Right' },
+        { id: 'btn-orient-2', label: '↓', action: 'orient2', aria: 'Orientation Down' },
+        { id: 'btn-orient-3', label: '←', action: 'orient3', aria: 'Orientation Left' }
+      ];
 
-    // Rotation buttons: support hold-to-repeat + simple haptic feedback
-    for (let id in btnMap) {
-      const el = document.getElementById(id);
-      if (!el) continue;
-      let repeatTimeout = null;
-      let repeatInterval = null;
-      const start = (e) => {
-        e.preventDefault();
-        if (this.engine.state.paused) return;
-        this.engine.action(btnMap[id]);
-        triggerHaptic(HAPTIC_TAP);
-        repeatTimeout = setTimeout(() => {
-          repeatInterval = setInterval(() => {
-            this.engine.action(btnMap[id]);
-            triggerHaptic(HAPTIC_ROTATE_REPEAT);
-          }, ROT_REPEAT_INTERVAL);
-        }, ROT_REPEAT_INITIAL);
-      };
-      const stop = (e) => {
-        if (e) e.preventDefault();
-        if (repeatTimeout) { clearTimeout(repeatTimeout); repeatTimeout = null; }
-        if (repeatInterval) { clearInterval(repeatInterval); repeatInterval = null; }
-      };
-      el.addEventListener('touchstart', start, { passive: false });
-      el.addEventListener('touchend', stop, { passive: false });
-      el.addEventListener('touchcancel', stop, { passive: false });
-      // mouse support
-      el.addEventListener('mousedown', start);
-      document.addEventListener('mouseup', stop);
+      orientations.forEach(o => {
+        const b = document.createElement('button'); b.id = o.id; b.setAttribute('aria-label', o.aria); b.dataset.action = o.action;
+        // preview canvas
+        const cvs = document.createElement('canvas'); cvs.className = 'preview-canvas'; cvs.width = 64; cvs.height = 64; cvs.style.width = '36px'; cvs.style.height = '36px';
+        b.appendChild(cvs);
+
+        const onPress = (e) => { if (e && e.preventDefault) e.preventDefault(); if (this.engine.state.paused) return; this.engine.action(o.action); triggerHaptic(HAPTIC_TAP); };
+        b.addEventListener('touchstart', onPress, { passive: false });
+        b.addEventListener('mousedown', onPress);
+        rotContainer.appendChild(b);
+        this._mobileBtnEls.push({ el: b, action: o.action, canvas: cvs });
+      });
+
+    } else {
+      // Default: rotation buttons with hold-to-repeat and preview canvases
+      const btnDefs = [
+        { id: 'btn-rot-ccw', label: '↺', action: 'rotateCCW', aria: 'Rotate counter-clockwise' },
+        { id: 'btn-rot-180', label: '↕', action: 'rotate180', aria: 'Rotate 180' },
+        { id: 'btn-rot-cw', label: '↻', action: 'rotateCW', aria: 'Rotate clockwise' }
+      ];
+
+      btnDefs.forEach(def => {
+        const el = document.createElement('button'); el.id = def.id; el.setAttribute('aria-label', def.aria); el.dataset.action = def.action;
+        // preview canvas
+        const cvs = document.createElement('canvas'); cvs.className = 'preview-canvas'; cvs.width = 64; cvs.height = 64; cvs.style.width = '36px'; cvs.style.height = '36px';
+        el.appendChild(cvs);
+
+        let repeatTimeout = null; let repeatInterval = null;
+        const start = (e) => {
+          if (e && e.preventDefault) e.preventDefault();
+          if (this.engine.state.paused) return;
+          this.engine.action(def.action);
+          triggerHaptic(HAPTIC_TAP);
+          repeatTimeout = setTimeout(() => {
+            repeatInterval = setInterval(() => {
+              this.engine.action(def.action);
+              triggerHaptic(HAPTIC_ROTATE_REPEAT);
+            }, ROT_REPEAT_INTERVAL);
+          }, ROT_REPEAT_INITIAL);
+        };
+        const stop = (e) => {
+          if (e && e.preventDefault) e.preventDefault();
+          if (repeatTimeout) { clearTimeout(repeatTimeout); repeatTimeout = null; }
+          if (repeatInterval) { clearInterval(repeatInterval); repeatInterval = null; }
+        };
+        el.addEventListener('touchstart', start, { passive: false });
+        el.addEventListener('touchend', stop, { passive: false });
+        el.addEventListener('touchcancel', stop, { passive: false });
+        el.addEventListener('mousedown', start);
+        const docStop = (e) => stop(e);
+        document.addEventListener('mouseup', docStop);
+        this._mobileDocHandlers.push(docStop);
+        rotContainer.appendChild(el);
+        this._mobileBtnEls.push({ el: el, action: def.action, canvas: cvs });
+      });
     }
+
+    // update previews initially
+    if (typeof this.updateMobilePreviews === 'function') this.updateMobilePreviews();
+  }
+
+  bindTouchEvents() {
+    // Create mobile rotation/orientation UI based on current settings
+    this.setupMobileControls();
+
+    // Previews are updated on control setup and on engine events (spawn/action). No continuous RAF loop to avoid layout thrash.
 
     // Soft-drop button (continuous while held)
     const softBtn = document.getElementById('btn-soft-drop');
@@ -420,6 +436,26 @@ class InputManager {
         // Clamp to allowed piece x range
         const clampedPieceX = Math.max(metrics.allowedMin, Math.min(metrics.allowedMax, targetPieceX));
 
+        const moveCurrentToColumn = (targetX) => {
+          const cur = this.engine.state.current;
+          if (!cur) return;
+          let safety = 0;
+          while (cur.x < targetX && safety < 12) {
+            const prevX = cur.x;
+            this.engine.action('right');
+            if (cur.x === prevX) break;
+            safety++;
+          }
+          safety = 0;
+          while (cur.x > targetX && safety < 12) {
+            const prevX = cur.x;
+            this.engine.action('left');
+            if (cur.x === prevX) break;
+            safety++;
+          }
+          if (this.syncSliderThumb) this.syncSliderThumb();
+        };
+
         moveCurrentToColumn(clampedPieceX);
         // update visual based on piece x
         this.setSliderVisual(clampedPieceX, metrics);
@@ -454,7 +490,7 @@ class InputManager {
 
         if (shouldHardDrop) {
           this.engine.action('hardDrop');
-          triggerHaptic(HAPTIC_HARD_DROP);
+          if (navigator.vibrate) navigator.vibrate(18);
         }
         // clear pointer state when touch ends so markers return to default
         this.lastPointerX = null;
@@ -494,8 +530,8 @@ class InputManager {
         moved = false;
         longPressTimer = setTimeout(() => {
           this.state.active.softDrop = true;
-          triggerHaptic(HAPTIC_LONG_PRESS);
-        }, BOARD_LONG_PRESS_DELAY);
+          if (navigator.vibrate) navigator.vibrate(6);
+        }, 300);
       }, { passive: false });
 
       board.addEventListener('touchmove', (e) => {
@@ -505,15 +541,36 @@ class InputManager {
         if (!t) return;
         const dx = t.clientX - touchStartX;
         const dy = t.clientY - touchStartY;
-        if (Math.abs(dx) > BOARD_TAP_MAX_MOVE || Math.abs(dy) > BOARD_TAP_MAX_MOVE) {
+        if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
           moved = true;
           if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
         }
         // horizontal drag -> snap move
-        if (Math.abs(dx) > BOARD_MOVE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
           const rect = board.getBoundingClientRect();
-          const col = getColumnFromClientX(t.clientX, rect);
-          if (col !== null) moveCurrentToColumn(col);
+          const col = this.getColumnFromClientX(t.clientX, rect);
+          if (col !== null) {
+            const moveCurrentToColumn = (targetX) => {
+              const cur = this.engine.state.current;
+              if (!cur) return;
+              let safety = 0;
+              while (cur.x < targetX && safety < 12) {
+                const prevX = cur.x;
+                this.engine.action('right');
+                if (cur.x === prevX) break;
+                safety++;
+              }
+              safety = 0;
+              while (cur.x > targetX && safety < 12) {
+                const prevX = cur.x;
+                this.engine.action('left');
+                if (cur.x === prevX) break;
+                safety++;
+              }
+              if (this.syncSliderThumb) this.syncSliderThumb();
+            };
+            moveCurrentToColumn(col);
+          }
         }
       }, { passive: false });
 
@@ -531,26 +588,47 @@ class InputManager {
         const dy = ended.clientY - touchStartY;
         const movedDistance = Math.hypot(dx, dy);
 
-        if (!moved && dt <= BOARD_TAP_MAX_TIME && movedDistance <= BOARD_TAP_MAX_MOVE) {
-          const now = Date.now();
-          if (now - lastBoardTapTime <= 350) {
+        const now = Date.now();
+        if (!moved && dt <= 250 && movedDistance <= 30) {
+          if (this._lastBoardTap && now - this._lastBoardTap <= 350) {
             this.engine.action('rotate180');
-            lastBoardTapTime = 0;
-            triggerHaptic(HAPTIC_DOUBLE_TAP);
+            this._lastBoardTap = 0;
+            if (navigator.vibrate) navigator.vibrate(16);
           } else {
             this.engine.action('rotateCW');
-            lastBoardTapTime = now;
-            triggerHaptic(HAPTIC_TAP);
+            this._lastBoardTap = now;
+            if (navigator.vibrate) navigator.vibrate(6);
           }
-        } else if (Math.abs(dy) > BOARD_SWIPE_THRESHOLD && dy > 0) {
+        } else if (Math.abs(dy) > 60 && dy > 0) {
           // quick swipe down = hard drop
           this.engine.action('hardDrop');
-          triggerHaptic(HAPTIC_HARD_DROP);
-        } else if (Math.abs(dx) > BOARD_MOVE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+          if (navigator.vibrate) navigator.vibrate(18);
+        } else if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
           // ended after horizontal drag -> snap to final column
           const rect = board.getBoundingClientRect();
-          const col = getColumnFromClientX(ended.clientX, rect);
-          if (col !== null) moveCurrentToColumn(col);
+          const col = this.getColumnFromClientX(ended.clientX, rect);
+          if (col !== null) {
+            const moveCurrentToColumn = (targetX) => {
+              const cur = this.engine.state.current;
+              if (!cur) return;
+              let safety = 0;
+              while (cur.x < targetX && safety < 12) {
+                const prevX = cur.x;
+                this.engine.action('right');
+                if (cur.x === prevX) break;
+                safety++;
+              }
+              safety = 0;
+              while (cur.x > targetX && safety < 12) {
+                const prevX = cur.x;
+                this.engine.action('left');
+                if (cur.x === prevX) break;
+                safety++;
+              }
+              if (this.syncSliderThumb) this.syncSliderThumb();
+            };
+            moveCurrentToColumn(col);
+          }
         }
 
         boardTouchId = null;
@@ -562,6 +640,65 @@ class InputManager {
         boardTouchId = null;
       }, { passive: false });
     }
+  }
+
+  // Helper used for board/slider logic (kept public because it's used inline in a couple of places above)
+  getColumnFromClientX(clientX, rect) {
+    // Guard against engine/state not being initialized yet
+    if (!this.engine || !this.engine.state || !this.engine.state.current) return null;
+    const metrics = this.getCurrentPieceXRange(this.engine.state.current);
+    if (!metrics) return null;
+    let touchX = clientX - rect.left;
+    touchX = Math.max(0, Math.min(touchX, rect.width));
+    const percentNormalized = rect.width <= 0 ? 0.5 : (touchX / rect.width);
+    const columnIndex = metrics.range <= 0 ? metrics.allowedMin : Math.round(metrics.allowedMin + percentNormalized * metrics.range);
+    return Math.max(metrics.allowedMin, Math.min(columnIndex, metrics.allowedMax));
+  }
+
+  // Update the small previews on the mobile rotation/orientation buttons
+  updateMobilePreviews() {
+    if (!this._mobileBtnEls || !this._mobileBtnEls.length) return;
+    // If engine/state isn't ready yet, clear previews and return
+    if (!this.engine || !this.engine.state) {
+      this._mobileBtnEls.forEach(item => {
+        const canvas = item.canvas || (item.el ? item.el.querySelector('canvas') : null);
+        if (canvas) {
+          const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      });
+      return;
+    }
+
+    const cur = this.engine.state.current;
+    const next = (this.engine.state.nextQueue && this.engine.state.nextQueue[0]) ? this.engine.state.nextQueue[0] : null;
+    const pieceType = cur ? cur.type : (next ? next.type : null);
+    const curRot = cur ? cur.rot : 0;
+
+    this._mobileBtnEls.forEach(item => {
+      const btn = item.el || item;
+      let action = item.action || (btn && btn.dataset ? btn.dataset.action : null);
+      const canvas = item.canvas || (btn ? btn.querySelector('canvas') : null);
+      if (!canvas) return;
+      if (!pieceType) {
+        const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height); return;
+      }
+      let targetRot = curRot;
+      if (!action) action = btn && btn.dataset ? btn.dataset.action : null;
+      if (action && action.startsWith('orient')) {
+        targetRot = parseInt(action.charAt(action.length - 1), 10);
+      } else if (action === 'rotateCW') targetRot = (curRot + 1) % 4;
+      else if (action === 'rotateCCW') targetRot = (curRot + 3) % 4;
+      else if (action === 'rotate180') targetRot = (curRot + 2) % 4;
+
+      if (this.engine && this.engine.renderer && typeof this.engine.renderer.renderButtonPreview === 'function') {
+        try {
+          this.engine.renderer.renderButtonPreview(canvas, pieceType, targetRot);
+        } catch (ex) {
+          // If preview rendering fails (e.g. canvas too large), clear the canvas and continue
+          try { const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height); } catch(e) {}
+        }
+      }
+    });
   }
 
   startBinding(action, btn) {
