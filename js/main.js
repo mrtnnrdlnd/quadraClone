@@ -26,7 +26,7 @@ function resizeGame() {
 
   if (sliderTrack && board && vw <= 768) {
     // Use board's bounding rect (natural coords while transform is removed) so width/left
-    // are consistent when aligning the slider
+    // are consistent when aligning the slider and stats
     const wrapperRect = wrapper.getBoundingClientRect();
     const boardRect = board.getBoundingClientRect();
     const boardNaturalWidth = Math.round(boardRect.width) || board.offsetWidth || 240;
@@ -49,6 +49,28 @@ function resizeGame() {
       sliderTrack.style.width = `${boardNaturalWidth}px`;
       sliderTrack.style.maxWidth = 'none';
     }
+
+    // Position bottom-stats to the left of the board, aligned to board top
+    const bottomStats = document.querySelector('.bottom-stats');
+    if (bottomStats) {
+      const bottomWidth = bottomStats.offsetWidth || bottomStats.clientWidth || 248;
+      const gap = 8;
+      let leftForBottom = Math.round(leftRelativeToWrapper - bottomWidth - gap);
+      if (leftForBottom < 0) leftForBottom = 0;
+      const topForBottom = Math.max(0, Math.round(boardRect.top - wrapperRect.top));
+
+      bottomStats.style.position = 'absolute';
+      bottomStats.style.left = `${leftForBottom}px`;
+      bottomStats.style.top = `${topForBottom}px`;
+      bottomStats.style.margin = '0';
+      bottomStats.style.display = '';
+
+      // Ensure stats are stacked vertically and visible above the board
+      bottomStats.style.flexDirection = 'column';
+      bottomStats.style.alignItems = 'flex-start';
+      bottomStats.style.zIndex = '30';
+      bottomStats.style.width = '';
+    }
   } else {
     // Restore to stylesheet defaults on larger screens
     if (sliderTrack) {
@@ -61,6 +83,15 @@ function resizeGame() {
       mobileSlider.style.width = '';
       mobileSlider.style.maxWidth = '';
       mobileSlider.style.display = '';
+    }
+
+    const bottomStats = document.querySelector('.bottom-stats');
+    if (bottomStats) {
+      bottomStats.style.position = '';
+      bottomStats.style.left = '';
+      bottomStats.style.top = '';
+      bottomStats.style.margin = '';
+      bottomStats.style.display = '';
     }
   }
 

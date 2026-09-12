@@ -268,10 +268,11 @@ input[type=range] {
   width: 70px; /* space for vertical buttons */
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end; /* place buttons at bottom */
   gap: 10px;
   margin-top: 0;
   z-index: 20;
+  box-sizing: border-box;
 }
 
 .mobile-slider {
@@ -281,6 +282,27 @@ input[type=range] {
   justify-content: center;
   margin-top: 10px;
   z-index: 20;
+}
+
+.soft-container {
+  margin-top: 28px; /* slightly larger gap between rotation group and soft-drop */
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Center the SVG icon inside the soft-drop button and rotate it to point down */
+.soft-drop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0; /* ensure svg centers well */
+}
+
+.soft-drop-btn svg {
+  transform: rotate(90deg); /* rotate fast-forward icon to point down */
+  display: block;
+  margin: auto;
 }
 
 .rot-buttons {
@@ -304,6 +326,23 @@ input[type=range] {
 .rot-buttons button:active {
   background: #00c3c3;
   color: #000;
+}
+
+/* Soft-drop button: placed with rotations on the left, active while pressed */
+.soft-drop-btn {
+  width: 55px;
+  height: 55px;
+  background: #00c3c3;
+  border: 1px solid #008b8b;
+  color: #000;
+  font-size: 24px;
+  border-radius: 8px;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.soft-drop-btn:active {
+  background: #00a5a5;
 }
 
 .slider-track {
@@ -353,6 +392,8 @@ input[type=range] {
 
   .mobile-rot-side {
     display: flex;
+    align-self: flex-end; /* align rot buttons to the bottom edge of the board */
+    justify-content: flex-end;
   }
 
   .mobile-slider {

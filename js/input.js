@@ -57,23 +57,41 @@ class InputManager {
       'btn-rot-cw': 'rotateCW'
     };
 
+    // One-shot rotation buttons
     for (let id in btnMap) {
       const el = document.getElementById(id);
       if (el) {
         el.addEventListener('touchstart', (e) => {
           e.preventDefault();
           this.engine.action(btnMap[id]);
-        });
+        }, { passive: false });
       }
+    }
+
+    // Soft-drop button (continuous while held)
+    const softBtn = document.getElementById('btn-soft-drop');
+    if (softBtn) {
+      softBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (!this.state.active.softDrop) {
+          this.state.active.softDrop = true;
+        }
+      }, { passive: false });
+      softBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        this.state.active.softDrop = false;
+      }, { passive: false });
+      softBtn.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        this.state.active.softDrop = false;
+      }, { passive: false });
     }
 
     const sliderTrack = document.getElementById('slider-track');
     const sliderThumb = document.getElementById('slider-thumb');
-    let startY = 0;
-    let isSoftDropping = false;
     let activeTouchPieceId = -1;
 
-    if (sliderTrack) {
+    if (sliderTrack && sliderThumb) {
       const updateAbsolutePosition = (clientX) => {
         if (!this.engine.state.current || this.engine.state.paused) return;
 
@@ -97,11 +115,6 @@ class InputManager {
         const usableScaledWidth = Math.max(1, rect.width - 2 * thumbRadiusScaled);
         const percentNormalized = (constrainedX - thumbRadiusScaled) / usableScaledWidth;
 
-        // Position thumb in natural pixels (center coordinate), inside [thumbRadius .. naturalTrackWidth - thumbRadius]
-        const naturalVisualX = thumbRadius + percentNormalized * Math.max(0, (naturalTrackWidth - 2 * thumbRadius));
-        sliderThumb.style.left = `${naturalVisualX}px`;
-        sliderThumb.style.transform = `translateX(-50%)`;
-
         // Spelmekanik: map normalized percent to allowed piece x-range
         let cur = this.engine.state.current;
         let matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
@@ -119,8 +132,29 @@ class InputManager {
         const allowedMin = -minC;
         const allowedMax = (CONFIG.COLS - 1 - maxC);
         const range = Math.max(0, allowedMax - allowedMin);
-        const targetX = Math.round(allowedMin + percentNormalized * range);
 
+        // Snap to nearest column index for stable behavior
+        let columnIndex;
+        if (range <= 0) {
+          columnIndex = allowedMin;
+        } else {
+          columnIndex = Math.round(allowedMin + percentNormalized * range);
+        }
+
+        // Position thumb at the center of the snapped column (natural pixels)
+        let naturalVisualX;
+        if (range <= 0) {
+          naturalVisualX = naturalTrackWidth / 2;
+        } else {
+          const t = (columnIndex - allowedMin) / range; // 0..1
+          naturalVisualX = thumbRadius + t * Math.max(0, (naturalTrackWidth - 2 * thumbRadius));
+        }
+
+        sliderThumb.style.left = `${naturalVisualX}px`;
+        sliderThumb.style.transform = `translateX(-50%)`;
+
+        // Move piece toward the snapped column
+        const targetX = columnIndex;
         let safety = 0;
         while (cur.x < targetX && safety < 10) {
           let prevX = cur.x;
@@ -140,9 +174,6 @@ class InputManager {
 
       sliderTrack.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        startY = e.touches[0].clientY;
-        isSoftDropping = false;
-
         activeTouchPieceId = this.engine.state.pieceIdCtr;
         updateAbsolutePosition(e.touches[0].clientX);
       }, { passive: false });
@@ -150,26 +181,10 @@ class InputManager {
       sliderTrack.addEventListener('touchmove', (e) => {
         e.preventDefault();
         if (this.engine.state.paused) return;
-
-        const currentY = e.touches[0].clientY;
-        const dy = currentY - startY;
-
-        if (dy > 30) {
-          if (!isSoftDropping) {
-            this.state.active.softDrop = true;
-            isSoftDropping = true;
-          }
-        } else {
-          if (isSoftDropping) {
-            this.state.active.softDrop = false;
-            isSoftDropping = false;
-          }
-        }
-
         updateAbsolutePosition(e.touches[0].clientX);
       }, { passive: false });
 
-      sliderTrack.addEventListener('touchend', (e) => {
+      const endHandler = (e) => {
         e.preventDefault();
         if (this.engine.state.paused) return;
 
@@ -177,11 +192,11 @@ class InputManager {
           this.engine.action('hardDrop');
         }
 
-        sliderThumb.style.left = `50%`;
-        sliderThumb.style.transform = `translateX(-50%)`;
-        this.state.active.softDrop = false;
-        isSoftDropping = false;
-      });
+        // Keep the thumb at the snapped position after release
+      };
+
+      sliderTrack.addEventListener('touchend', endHandler, { passive: false });
+      sliderTrack.addEventListener('touchcancel', endHandler, { passive: false });
     }
   }
 
