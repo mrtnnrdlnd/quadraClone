@@ -159,7 +159,6 @@ class InputManager {
     this.sliderThumb = document.getElementById('slider-thumb');
     let activeSliderTouchId = null;
     let activeSliderPieceId = -1;
-    let sliderAwaitingFreshTouch = false;
 
     if (this.sliderTrack && this.sliderThumb) {
       const getTouchById = (touchList, id) => Array.from(touchList).find(touch => touch.identifier === id) || null;
@@ -214,32 +213,25 @@ class InputManager {
         if (!touch) return;
         activeSliderTouchId = touch.identifier;
         activeSliderPieceId = this.engine.state.pieceIdCtr;
-        sliderAwaitingFreshTouch = false;
         updateAbsolutePosition(touch.clientX);
       }, { passive: false });
 
       this.sliderTrack.addEventListener('touchmove', (e) => {
         e.preventDefault();
-        if (this.engine.state.paused || sliderAwaitingFreshTouch || activeSliderTouchId === null) return;
+        if (this.engine.state.paused || activeSliderTouchId === null) return;
         const touch = getTouchById(e.touches, activeSliderTouchId);
         if (!touch) return;
         updateAbsolutePosition(touch.clientX);
       }, { passive: false });
 
       const endHandler = (e) => {
-        if (activeSliderTouchId === null) {
-          if (sliderAwaitingFreshTouch && e.targetTouches.length === 0) {
-            sliderAwaitingFreshTouch = false;
-          }
-          return;
-        }
+        if (activeSliderTouchId === null) return;
         const endedTouch = getTouchById(e.changedTouches, activeSliderTouchId);
         if (!endedTouch) return;
         e.preventDefault();
         const shouldHardDrop = !this.engine.state.paused && this.engine.state.pieceIdCtr === activeSliderPieceId;
         activeSliderTouchId = null;
         activeSliderPieceId = -1;
-        sliderAwaitingFreshTouch = e.targetTouches.length > 0;
 
         if (shouldHardDrop) {
           this.engine.action('hardDrop');
