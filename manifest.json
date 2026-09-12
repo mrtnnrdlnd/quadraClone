@@ -2,9 +2,15 @@
   "name": "JS Quadra Clone - Modular",
   "short_name": "Quadra",
   "description": "A modular JavaScript Quadra clone game",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "orientation": "portrait",
   "background_color": "#111111",
   "theme_color": "#121212",
   "icons": [
