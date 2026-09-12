@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>JS Quadra Clone - Modular</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#121212">
+  <link rel="icon" href="icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
 </head>
 <body>
   <div class="game-wrapper">
@@ -125,5 +129,14 @@
   <script src="js/input.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service worker registered', reg))
+          .catch(err => console.warn('Service worker registration failed', err));
+      });
+    }
+  </script>
 </body>
 </html>
