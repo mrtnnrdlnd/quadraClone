@@ -22,6 +22,16 @@
         <div class="stat-row"><canvas id="prev-T" class="mini-canvas"></canvas><div class="retro-box" id="count-T">0</div></div>
         <div class="stat-row total-row"><span class="stat-label">Total:</span><div class="retro-box" id="count-Total">0</div></div>
       </div>
+
+      <!-- Mobile rotation buttons (appear to the left of the board on small screens) -->
+      <div class="mobile-rot-side">
+        <div class="rot-buttons">
+          <button id="btn-rot-ccw">↺</button>
+          <button id="btn-rot-180">↕</button>
+          <button id="btn-rot-cw">↻</button>
+        </div>
+      </div>
+
       <div class="board-container">
         <canvas id="board" width="240" height="480"></canvas>
       </div>
@@ -44,22 +54,19 @@
         <div class="stat-row total-row" style="padding-top: 5px;"><span class="stat-label">Total:</span><div class="retro-box" id="lines-Total">0</div></div>
       </div>
     </div>
+
+    <!-- Mobile slider under the board -->
+    <div class="mobile-slider">
+      <div id="slider-track" class="slider-track">
+        <div id="slider-thumb" class="slider-thumb"></div>
+      </div>
+    </div>
+
     <div class="bottom-stats">
       <div class="stat-row"><span class="stat-label">Score:</span><div class="retro-box" id="score">0</div></div>
       <div class="stat-row"><span class="stat-label">Lines:</span><div class="retro-box" id="lines">0</div></div>
       <div class="stat-row"><span class="stat-label">Level:</span><div class="retro-box" id="level">1</div></div>
     </div>
-
-    <div class="mobile-controls">
-          <div class="rot-buttons">
-            <button id="btn-rot-ccw">↺</button>
-            <button id="btn-rot-180">↕</button>
-            <button id="btn-rot-cw">↻</button>
-          </div>
-          <div id="slider-track" class="slider-track">
-            <div id="slider-thumb" class="slider-thumb"></div>
-          </div>
-        </div>
   </div>
 
   <button class="settings-btn" onclick="game.toggleSettings()">Settings</button>

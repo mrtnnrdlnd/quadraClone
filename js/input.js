@@ -81,15 +81,28 @@ class InputManager {
         let touchX = clientX - rect.left;
         touchX = Math.max(0, Math.min(touchX, rect.width));
 
-        const percent = touchX / rect.width;
+        // Natural (unscaled) track width
+        const naturalTrackWidth = sliderTrack.offsetWidth || rect.width;
+        const thumbNaturalWidth = sliderThumb.offsetWidth || 55;
+        const thumbRadius = thumbNaturalWidth / 2;
 
-        // Visuell spärr: håll ringen (thumb) strikt innanför track-kanterna
-        const thumbRadius = sliderThumb.offsetWidth / 2;
-        const visualX = Math.max(thumbRadius, Math.min(touchX, rect.width - thumbRadius));
-        sliderThumb.style.left = `${visualX}px`;
+        // Scale factor between visual (client) rect and natural sizes
+        const scale = rect.width / naturalTrackWidth || 1;
+        const thumbRadiusScaled = thumbRadius * scale;
+
+        // Constrain touchX so the thumb center can't go beyond the visual track edges
+        const constrainedX = Math.max(thumbRadiusScaled, Math.min(touchX, rect.width - thumbRadiusScaled));
+
+        // Normalized percent across usable area (excluding thumb radius on both ends)
+        const usableScaledWidth = Math.max(1, rect.width - 2 * thumbRadiusScaled);
+        const percentNormalized = (constrainedX - thumbRadiusScaled) / usableScaledWidth;
+
+        // Position thumb in natural pixels (center coordinate), inside [thumbRadius .. naturalTrackWidth - thumbRadius]
+        const naturalVisualX = thumbRadius + percentNormalized * Math.max(0, (naturalTrackWidth - 2 * thumbRadius));
+        sliderThumb.style.left = `${naturalVisualX}px`;
         sliderThumb.style.transform = `translateX(-50%)`;
 
-        // Spelmekanik
+        // Spelmekanik: map normalized percent to allowed piece x-range
         let cur = this.engine.state.current;
         let matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
 
@@ -103,7 +116,10 @@ class InputManager {
           }
         }
 
-        let targetX = Math.round(-minC + percent * (CONFIG.COLS - 1 - maxC + minC));
+        const allowedMin = -minC;
+        const allowedMax = (CONFIG.COLS - 1 - maxC);
+        const range = Math.max(0, allowedMax - allowedMin);
+        const targetX = Math.round(allowedMin + percentNormalized * range);
 
         let safety = 0;
         while (cur.x < targetX && safety < 10) {

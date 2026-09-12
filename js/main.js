@@ -14,10 +14,55 @@ function resizeGame() {
   const vw = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
   const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
 
-  // Temporarily clear any transform so we measure the wrapper's natural (unscaled) size,
-  // which includes the mobile touch controls when they're visible
+  // Temporarily clear any transform so we can adjust sizes and measure the wrapper's
+  // natural (unscaled) size. We set the slider width (if present) to match the board's
+  // natural width before measuring so it is considered in the layout.
   const prevTransform = wrapper.style.transform || '';
   wrapper.style.transform = 'none';
+
+  const board = document.getElementById('board');
+  const sliderTrack = document.getElementById('slider-track');
+  const mobileSlider = document.querySelector('.mobile-slider');
+
+  if (sliderTrack && board && vw <= 768) {
+    // Use board's bounding rect (natural coords while transform is removed) so width/left
+    // are consistent when aligning the slider
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const boardRect = board.getBoundingClientRect();
+    const boardNaturalWidth = Math.round(boardRect.width) || board.offsetWidth || 240;
+    const leftRelativeToWrapper = Math.max(0, Math.round(boardRect.left - wrapperRect.left));
+
+    if (mobileSlider) {
+      // Keep the slider in normal flow (so it's included in wrapper.offsetHeight) but
+      // align it precisely under the board by using align-self + margin-left
+      mobileSlider.style.alignSelf = 'flex-start';
+      mobileSlider.style.marginLeft = `${leftRelativeToWrapper}px`;
+      mobileSlider.style.width = `${boardNaturalWidth}px`;
+      mobileSlider.style.maxWidth = 'none';
+      mobileSlider.style.display = '';
+
+      // Make the inner track span the full width of the container
+      sliderTrack.style.width = '100%';
+      sliderTrack.style.maxWidth = 'none';
+    } else {
+      // fallback: set the track width directly
+      sliderTrack.style.width = `${boardNaturalWidth}px`;
+      sliderTrack.style.maxWidth = 'none';
+    }
+  } else {
+    // Restore to stylesheet defaults on larger screens
+    if (sliderTrack) {
+      sliderTrack.style.width = '';
+      sliderTrack.style.maxWidth = '';
+    }
+    if (mobileSlider) {
+      mobileSlider.style.alignSelf = '';
+      mobileSlider.style.marginLeft = '';
+      mobileSlider.style.width = '';
+      mobileSlider.style.maxWidth = '';
+      mobileSlider.style.display = '';
+    }
+  }
 
   // offsetWidth/offsetHeight measure layout size (not affected by transform)
   const naturalWidth = wrapper.offsetWidth || 250; // fall back to prior assumed sizes
