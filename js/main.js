@@ -54,7 +54,7 @@ function resizeGame() {
     const bottomStats = document.querySelector('.bottom-stats');
     if (bottomStats) {
       const bottomWidth = bottomStats.offsetWidth || bottomStats.clientWidth || 248;
-      const gap = 8;
+      const gap = 4;
       let leftForBottom = Math.round(leftRelativeToWrapper - bottomWidth - gap);
       if (leftForBottom < 0) leftForBottom = 0;
       const topForBottom = Math.max(0, Math.round(boardRect.top - wrapperRect.top));
