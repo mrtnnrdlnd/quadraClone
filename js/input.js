@@ -234,7 +234,15 @@ class InputManager {
     const BOARD_LONG_PRESS_DELAY = 300; // ms
     const BOARD_SWIPE_THRESHOLD = 60; // px (for swipe down hard drop)
     const BOARD_MOVE_THRESHOLD = 12; // px (horizontal drag to move)
+    const HAPTIC_TAP = 6;
+    const HAPTIC_ROTATE_REPEAT = 4;
+    const HAPTIC_LONG_PRESS = 6;
+    const HAPTIC_DOUBLE_TAP = 16;
+    const HAPTIC_HARD_DROP = 18;
     let lastBoardTapTime = 0;
+    const triggerHaptic = (duration) => {
+      if (duration > 0 && navigator.vibrate) navigator.vibrate(duration);
+    };
 
     // Helper: map clientX inside a rect to an allowed column for the current piece
     const getColumnFromClientX = (clientX, rect) => {
@@ -278,11 +286,11 @@ class InputManager {
         e.preventDefault();
         if (this.engine.state.paused) return;
         this.engine.action(btnMap[id]);
-        if (navigator.vibrate) navigator.vibrate(10);
+        triggerHaptic(HAPTIC_TAP);
         repeatTimeout = setTimeout(() => {
           repeatInterval = setInterval(() => {
             this.engine.action(btnMap[id]);
-            if (navigator.vibrate) navigator.vibrate(8);
+            triggerHaptic(HAPTIC_ROTATE_REPEAT);
           }, ROT_REPEAT_INTERVAL);
         }, ROT_REPEAT_INITIAL);
       };
@@ -446,7 +454,7 @@ class InputManager {
 
         if (shouldHardDrop) {
           this.engine.action('hardDrop');
-          if (navigator.vibrate) navigator.vibrate(20);
+          triggerHaptic(HAPTIC_HARD_DROP);
         }
         // clear pointer state when touch ends so markers return to default
         this.lastPointerX = null;
@@ -486,7 +494,7 @@ class InputManager {
         moved = false;
         longPressTimer = setTimeout(() => {
           this.state.active.softDrop = true;
-          if (navigator.vibrate) navigator.vibrate(10);
+          triggerHaptic(HAPTIC_LONG_PRESS);
         }, BOARD_LONG_PRESS_DELAY);
       }, { passive: false });
 
@@ -528,16 +536,16 @@ class InputManager {
           if (now - lastBoardTapTime <= 350) {
             this.engine.action('rotate180');
             lastBoardTapTime = 0;
-            if (navigator.vibrate) navigator.vibrate(25);
+            triggerHaptic(HAPTIC_DOUBLE_TAP);
           } else {
             this.engine.action('rotateCW');
             lastBoardTapTime = now;
-            if (navigator.vibrate) navigator.vibrate(10);
+            triggerHaptic(HAPTIC_TAP);
           }
         } else if (Math.abs(dy) > BOARD_SWIPE_THRESHOLD && dy > 0) {
           // quick swipe down = hard drop
           this.engine.action('hardDrop');
-          if (navigator.vibrate) navigator.vibrate(30);
+          triggerHaptic(HAPTIC_HARD_DROP);
         } else if (Math.abs(dx) > BOARD_MOVE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
           // ended after horizontal drag -> snap to final column
           const rect = board.getBoundingClientRect();
