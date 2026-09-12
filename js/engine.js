@@ -2,7 +2,7 @@ class QuadraEngine {
   constructor() {
     this.renderer = new Renderer();
     // User-configurable options (loaded later will override these)
-    this.cfg = { baseGravity: 1, softDropSpeed: 20, das: 150, arr: 30, controlMode: 'rotation' };
+    this.cfg = { baseGravity: 1, softDropSpeed: 20, das: 150, arr: 30, controlMode: 'rotation', hapticStrength: 100 };
 
 
 
@@ -456,8 +456,12 @@ class QuadraEngine {
         this.saveSettings();
         if (k === 'controlMode' && this.input && typeof this.input.setupMobileControls === 'function') this.input.setupMobileControls();
       });
-      ['DAS','ARR','Gravity','SoftDrop'].forEach(id => {
-        const val = id==='Gravity'?this.cfg.baseGravity:id==='SoftDrop'?this.cfg.softDropSpeed:this.cfg[id.toLowerCase()];
+      ['DAS','ARR','Gravity','SoftDrop','Haptic'].forEach(id => {
+        let val;
+        if (id === 'Gravity') val = this.cfg.baseGravity;
+        else if (id === 'SoftDrop') val = this.cfg.softDropSpeed;
+        else if (id === 'Haptic') val = this.cfg.hapticStrength;
+        else val = this.cfg[id.toLowerCase()];
         const rangeEl = document.getElementById(`range${id}`);
         const valEl = document.getElementById(`val${id}`);
         if (rangeEl) rangeEl.value = val;
@@ -474,10 +478,12 @@ class QuadraEngine {
       const rangeARR = document.getElementById('rangeARR');
       const rangeGravity = document.getElementById('rangeGravity');
       const rangeSoftDrop = document.getElementById('rangeSoftDrop');
+      const rangeHaptic = document.getElementById('rangeHaptic');
       if (rangeDAS) this.cfg.das = parseInt(rangeDAS.value);
       if (rangeARR) this.cfg.arr = parseInt(rangeARR.value);
       if (rangeGravity) this.cfg.baseGravity = parseInt(rangeGravity.value);
       if (rangeSoftDrop) this.cfg.softDropSpeed = parseInt(rangeSoftDrop.value);
+      if (rangeHaptic) this.cfg.hapticStrength = parseInt(rangeHaptic.value);
       this.saveSettings();
     }
   }

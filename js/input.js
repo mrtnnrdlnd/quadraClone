@@ -17,6 +17,21 @@ class InputManager {
     this.bindTouchEvents();
   }
 
+  // Wrapper around navigator.vibrate that scales durations according to engine.cfg.hapticStrength
+  triggerHaptic(baseDuration) {
+    try {
+      if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+      const cfg = (this.engine && this.engine.cfg) ? this.engine.cfg : null;
+      const strength = (cfg && typeof cfg.hapticStrength === 'number') ? cfg.hapticStrength : 100;
+      if (!strength || strength <= 0) return;
+      const mult = Math.max(0, strength) / 100;
+      const dur = Math.round(baseDuration * mult);
+      if (dur > 0) navigator.vibrate(dur);
+    } catch (e) {
+      // ignore non-fatal vibrate errors
+    }
+  }
+
   bindEvents() {
     window.addEventListener('keydown', e => {
       if (this.state.bindingAction) {
@@ -236,11 +251,6 @@ class InputManager {
 
     const controlMode = (this.engine && this.engine.cfg && this.engine.cfg.controlMode) ? this.engine.cfg.controlMode : 'rotation';
 
-    // Haptics helper
-    const triggerHaptic = (duration) => {
-      if (duration > 0 && navigator.vibrate) navigator.vibrate(duration);
-    };
-
     // Rotation repeat settings (for the rotate buttons)
     const ROT_REPEAT_INITIAL = 250;
     const ROT_REPEAT_INTERVAL = 120;
@@ -262,7 +272,7 @@ class InputManager {
         const cvs = document.createElement('canvas'); cvs.className = 'preview-canvas'; cvs.width = 64; cvs.height = 64; cvs.style.width = '36px'; cvs.style.height = '36px';
         b.appendChild(cvs);
 
-        const onPress = (e) => { if (e && e.preventDefault) e.preventDefault(); if (this.engine.state.paused) return; this.engine.action(o.action); triggerHaptic(HAPTIC_TAP); };
+        const onPress = (e) => { if (e && e.preventDefault) e.preventDefault(); if (this.engine.state.paused) return; this.engine.action(o.action); this.triggerHaptic(HAPTIC_TAP); };
         b.addEventListener('touchstart', onPress, { passive: false });
         b.addEventListener('mousedown', onPress);
         rotContainer.appendChild(b);
@@ -288,11 +298,11 @@ class InputManager {
           if (e && e.preventDefault) e.preventDefault();
           if (this.engine.state.paused) return;
           this.engine.action(def.action);
-          triggerHaptic(HAPTIC_TAP);
+          this.triggerHaptic(HAPTIC_TAP);
           repeatTimeout = setTimeout(() => {
             repeatInterval = setInterval(() => {
               this.engine.action(def.action);
-              triggerHaptic(HAPTIC_ROTATE_REPEAT);
+              this.triggerHaptic(HAPTIC_ROTATE_REPEAT);
             }, ROT_REPEAT_INTERVAL);
           }, ROT_REPEAT_INITIAL);
         };
@@ -492,7 +502,7 @@ class InputManager {
 
         if (shouldHardDrop) {
           this.engine.action('hardDrop');
-          if (navigator.vibrate) navigator.vibrate(18);
+          this.triggerHaptic(18);
         }
         // clear pointer state when touch ends so markers return to default
         this.lastPointerX = null;
@@ -532,7 +542,7 @@ class InputManager {
         moved = false;
         longPressTimer = setTimeout(() => {
           this.state.active.softDrop = true;
-          if (navigator.vibrate) navigator.vibrate(6);
+          this.triggerHaptic(6);
         }, 300);
       }, { passive: false });
 
@@ -595,16 +605,16 @@ class InputManager {
           if (this._lastBoardTap && now - this._lastBoardTap <= 350) {
             this.engine.action('rotate180');
             this._lastBoardTap = 0;
-            if (navigator.vibrate) navigator.vibrate(16);
+            this.triggerHaptic(16);
           } else {
             this.engine.action('rotateCW');
             this._lastBoardTap = now;
-            if (navigator.vibrate) navigator.vibrate(6);
+            this.triggerHaptic(6);
           }
         } else if (Math.abs(dy) > 60 && dy > 0) {
           // quick swipe down = hard drop
           this.engine.action('hardDrop');
-          if (navigator.vibrate) navigator.vibrate(18);
+          this.triggerHaptic(18);
         } else if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
           // ended after horizontal drag -> snap to final column
           const rect = board.getBoundingClientRect();

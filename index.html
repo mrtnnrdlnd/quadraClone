@@ -92,6 +92,8 @@
         <input type="range" id="rangeGravity" min="1" max="10" value="1" oninput="document.getElementById('valGravity').innerText=this.value">
         <div class="setting-label"><span>Soft Drop (x)</span><span id="valSoftDrop">20</span></div>
         <input type="range" id="rangeSoftDrop" min="2" max="50" value="20" oninput="document.getElementById('valSoftDrop').innerText=this.value">
+        <div class="setting-label"><span>Haptic Strength</span><span id="valHaptic">100</span></div>
+        <input type="range" id="rangeHaptic" min="0" max="200" value="100" step="5" oninput="document.getElementById('valHaptic').innerText=this.value">
       </div>
       <div id="controlsList"></div>
       <button class="settings-btn" style="position:relative; right:0; bottom:0; margin-top:20px;" onclick="game.toggleSettings()">Save & Close</button>
