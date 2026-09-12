@@ -229,7 +229,7 @@ class InputManager {
         const endedTouch = getTouchById(e.changedTouches, activeSliderTouchId);
         if (!endedTouch) return;
         e.preventDefault();
-        const shouldHardDrop = !this.engine.state.paused && this.engine.state.pieceIdCtr === activeSliderPieceId;
+        const shouldHardDrop = e.type === 'touchend' && !this.engine.state.paused && this.engine.state.pieceIdCtr === activeSliderPieceId;
         activeSliderTouchId = null;
         activeSliderPieceId = -1;
 
