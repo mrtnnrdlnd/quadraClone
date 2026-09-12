@@ -237,7 +237,6 @@ class InputManager {
     const HAPTIC_TAP = 6;
     const HAPTIC_ROTATE_REPEAT = 4;
     const HAPTIC_LONG_PRESS = 6;
-    const HAPTIC_SLIDER_DROP = 14;
     const HAPTIC_DOUBLE_TAP = 16;
     const HAPTIC_HARD_DROP = 18;
     let lastBoardTapTime = 0;
@@ -455,7 +454,7 @@ class InputManager {
 
         if (shouldHardDrop) {
           this.engine.action('hardDrop');
-          triggerHaptic(HAPTIC_SLIDER_DROP);
+          triggerHaptic(HAPTIC_HARD_DROP);
         }
         // clear pointer state when touch ends so markers return to default
         this.lastPointerX = null;
