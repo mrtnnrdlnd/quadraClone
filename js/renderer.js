@@ -106,8 +106,9 @@ class Renderer {
 
         for (let r = 0; r < matrix.length; r++) {
           for (let c = 0; c < matrix[r].length; c++) {
-            const logicalY = (isGhost ? gy : current.y) + r;
-            if (matrix[r][c] !== 0 && logicalY >= 0) {
+            // Always draw piece blocks even if they're above the visible grid so the piece
+            // appears whole while entering (canvas will clip negative coordinates).
+            if (matrix[r][c] !== 0) {
               this.drawBlock(this.ctx, (current.x + c) * BS, pixelYOffset + r * BS, BS, color, {
                 top: r===0 || matrix[r-1][c]===0, bottom: r===matrix.length-1 || matrix[r+1][c]===0,
                 left: c===0 || matrix[r][c-1]===0, right: c===matrix[r].length-1 || matrix[r][c+1]===0

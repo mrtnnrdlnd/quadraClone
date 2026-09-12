@@ -60,10 +60,17 @@ class QuadraEngine {
 
   spawnNext() {
     const nextPiece = this.state.nextQueue.shift();
+    const matrix = PRECALC_ROTATIONS[nextPiece.type][0];
+    let minR = matrix.length;
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c] !== 0) { minR = Math.min(minR, r); break; }
+      }
+    }
     this.state.current = {
       type: nextPiece.type, rot: 0,
       x: Math.floor((CONFIG.COLS - PRECALC_ROTATIONS[nextPiece.type][0][0].length) / 2),
-      y: nextPiece.type === 'I' ? -1 : 0
+      y: -minR - 1
     };
     this.updateGhostY();
     this.state.nextQueue.push({ type: this.getBagPiece(), rot: 0 });
