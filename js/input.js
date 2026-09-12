@@ -227,14 +227,19 @@ class InputManager {
       }, { passive: false });
 
       const endHandler = (e) => {
-        if (activeSliderTouchId === null) return;
+        if (activeSliderTouchId === null) {
+          if (sliderAwaitingFreshTouch && e.targetTouches.length === 0) {
+            sliderAwaitingFreshTouch = false;
+          }
+          return;
+        }
         const endedTouch = getTouchById(e.changedTouches, activeSliderTouchId);
         if (!endedTouch) return;
         e.preventDefault();
         const shouldHardDrop = !this.engine.state.paused && this.engine.state.pieceIdCtr === activeSliderPieceId;
         activeSliderTouchId = null;
         activeSliderPieceId = -1;
-        sliderAwaitingFreshTouch = true;
+        sliderAwaitingFreshTouch = e.targetTouches.length > 0;
 
         if (shouldHardDrop) {
           this.engine.action('hardDrop');
