@@ -128,3 +128,41 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', () => { updateVh(); resizeGame(); });
   window.visualViewport.addEventListener('scroll', () => { updateVh(); resizeGame(); });
 }
+
+// Ensure settings button is reliably tappable on devices that may capture touch events.
+// Install a capturing touch/pointer handler that triggers the settings toggle when the user
+// touches the visible button area. This prevents other handlers from intercepting the touch.
+(function ensureSettingsTouch() {
+  const settingsBtn = document.getElementById('settings-btn');
+  if (!settingsBtn) return;
+  const toggleHit = (x, y) => {
+    const rect = settingsBtn.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  };
+
+  const touchHandler = (e) => {
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
+    const t = e.changedTouches[0];
+    if (toggleHit(t.clientX, t.clientY)) {
+      try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
+      if (window.game && typeof window.game.toggleSettings === 'function') {
+        window.game.toggleSettings();
+      }
+      e.stopPropagation();
+    }
+  };
+  document.addEventListener('touchstart', touchHandler, { passive: false, capture: true });
+
+  // pointerdown fallback (covers some devices / browsers)
+  const pointerHandler = (e) => {
+    if (e.pointerType && e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+    if (toggleHit(e.clientX, e.clientY)) {
+      try { e.preventDefault(); } catch (err) {}
+      if (window.game && typeof window.game.toggleSettings === 'function') {
+        window.game.toggleSettings();
+      }
+      e.stopPropagation();
+    }
+  };
+  document.addEventListener('pointerdown', pointerHandler, { capture: true });
+})();

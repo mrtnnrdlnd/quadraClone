@@ -116,17 +116,24 @@ canvas#board {
 .mini-canvas {}
 
 .settings-btn {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + 12px);
+  right: calc(env(safe-area-inset-right) + 12px);
   background: #000;
   border: 1px solid #00e5ff;
   color: #00e5ff;
-  padding: 8px 12px;
+  padding: 0;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: inherit;
   cursor: pointer;
-  z-index: 200; /* ensure button is above the scaled game wrapper on mobile */
-  touch-action: manipulation; /* prefer immediate tap handling on mobile */
+  z-index: 99999; /* ensure button is above everything */
+  touch-action: manipulation;
+  pointer-events: auto;
+  border-radius: 8px;
 }
 
 .settings-btn:hover {
