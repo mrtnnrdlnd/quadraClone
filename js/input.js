@@ -448,9 +448,28 @@ class InputManager {
         this.setSliderVisual(clampedPieceX, metrics);
       };
 
+      // Shared end-of-interaction logic for both touch and mouse dragging.
+      // A release counts as a hard-drop request unless the interaction was
+      // cancelled (touchcancel) or the piece already changed mid-drag.
+      let sliderMouseActive = false;
+      const endSliderInteraction = (countsAsRelease) => {
+        const shouldHardDrop = countsAsRelease && !this.engine.state.paused && this.engine.state.pieceIdCtr === activeSliderPieceId;
+        activeSliderTouchId = null;
+        sliderMouseActive = false;
+        activeSliderPieceId = -1;
+
+        if (shouldHardDrop) {
+          this.engine.action('hardDrop');
+          this.triggerHaptic(18);
+        }
+        // clear pointer state when the interaction ends so markers return to default
+        this.lastPointerX = null;
+        this.syncSliderThumb();
+      };
+
       this.sliderTrack.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        if (activeSliderTouchId !== null) return;
+        if (activeSliderTouchId !== null || sliderMouseActive) return;
         const touch = e.changedTouches[0];
         if (!touch) return;
         activeSliderTouchId = touch.identifier;
@@ -471,21 +490,31 @@ class InputManager {
         const endedTouch = getTouchById(e.changedTouches, activeSliderTouchId);
         if (!endedTouch) return;
         e.preventDefault();
-        const shouldHardDrop = e.type === 'touchend' && !this.engine.state.paused && this.engine.state.pieceIdCtr === activeSliderPieceId;
-        activeSliderTouchId = null;
-        activeSliderPieceId = -1;
-
-        if (shouldHardDrop) {
-          this.engine.action('hardDrop');
-          this.triggerHaptic(18);
-        }
-        // clear pointer state when touch ends so markers return to default
-        this.lastPointerX = null;
-        this.syncSliderThumb();
+        endSliderInteraction(e.type === 'touchend');
       };
 
       this.sliderTrack.addEventListener('touchend', endHandler, { passive: false });
       this.sliderTrack.addEventListener('touchcancel', endHandler, { passive: false });
+
+      // Mouse support: the slider is now also visible in landscape/desktop
+      // mode, so mouse users need to be able to drag it just like touch users.
+      this.sliderTrack.addEventListener('mousedown', (e) => {
+        if (activeSliderTouchId !== null) return; // a touch drag already owns the slider
+        e.preventDefault();
+        sliderMouseActive = true;
+        activeSliderPieceId = this.engine.state.pieceIdCtr;
+        updateFromClientX(e.clientX);
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!sliderMouseActive || this.engine.state.paused) return;
+        updateFromClientX(e.clientX);
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!sliderMouseActive) return;
+        endSliderInteraction(true);
+      });
     }
   }
 

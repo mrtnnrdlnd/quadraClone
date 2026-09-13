@@ -5,10 +5,6 @@ const MOBILE_MAX_SCALE = 2;
 // shows the side panels plus the rotate/slider touch controls, portrait shows a
 // compact touch-only layout. Together these two cover every possible viewport, so
 // there's no longer a third "no touch controls" in-between state.
-function isLandscapeTouch() {
-  return window.matchMedia('(orientation: landscape)').matches;
-}
-
 function isPortraitTouch() {
   return window.matchMedia('(orientation: portrait)').matches;
 }
@@ -138,10 +134,10 @@ function resizeGame() {
   }
 
   // Compute a scale that fits the visual viewport while keeping aspect ratio.
-  // On mobile we also allow upscaling so the game can fill more of the screen.
+  // Every viewport is either portrait or landscape now (both always show the
+  // touch controls), so we always allow upscaling to fill more of the screen.
   const fitScale = Math.min(vw / naturalWidth, vh / naturalHeight);
-  const maxScale = (isPortrait || isLandscapeTouch()) ? MOBILE_MAX_SCALE : 1;
-  const scale = Math.max(0.1, Math.min(maxScale, fitScale));
+  const scale = Math.max(0.1, Math.min(MOBILE_MAX_SCALE, fitScale));
 
   // Apply the new scale
   wrapper.style.transform = `scale(${scale})`;
