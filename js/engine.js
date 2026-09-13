@@ -258,6 +258,19 @@ class QuadraEngine {
       }
       this.stats.clears.Total += t;
       this.renderer.updateStat('lines', 'Total', this.stats.clears.Total);
+
+      // If we have a network connection, send competitive garbage to the peer
+      try {
+        if (this.net && typeof this.net.send === 'function' && typeof this.net.isOpen === 'function' && this.net.isOpen()) {
+          // Simple garbage mapping: single=0, double=1, triple=2, quad=4, else lines-1
+          const gMap = [0, 0, 1, 2, 4];
+          const g = (t >= 0 && t < gMap.length) ? gMap[t] : Math.max(0, t - 1);
+          if (g > 0) {
+            this.net.send({ type: 'garbage', count: g });
+          }
+        }
+      } catch (e) {}
+
       this.state.cascadeLines = 0;
     }
     this.state.combo = 1;
@@ -485,6 +498,23 @@ class QuadraEngine {
       if (rangeSoftDrop) this.cfg.softDropSpeed = parseInt(rangeSoftDrop.value);
       if (rangeHaptic) this.cfg.hapticStrength = parseInt(rangeHaptic.value);
       this.saveSettings();
+    }
+  }
+
+  // Receive garbage rows from a remote player and insert them at the bottom of the grid
+  addGarbage(count) {
+    if (!count || count <= 0 || this.state.gameOver) return;
+    for (let i = 0; i < count; i++) {
+      const hole = Math.floor(Math.random() * CONFIG.COLS);
+      const gid = `g_${this.state.pieceIdCtr++}`;
+      const newRow = Array.from({ length: CONFIG.COLS }, (_, c) => c === hole ? 0 : { type: 'G', id: gid });
+      // Shift everything up by one row and push the garbage row at the bottom
+      this.state.grid.shift();
+      this.state.grid.push(newRow);
+    }
+    // If the top row is occupied after inserting garbage, game over
+    if (this.state.grid[0].some(cell => cell !== 0)) {
+      this.triggerGameOver();
     }
   }
 }

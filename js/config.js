@@ -1,7 +1,7 @@
 const CONFIG = {
   COLS: 10, ROWS: 20, BLOCK_SIZE: 24, FLASH_DURATION: 100,
   COLORS: {
-    O: '#ff6600', S: '#00c3c3', Z: '#cc0000', J: '#c3c300', L: '#b300b3', I: '#00b300', T: '#0000cc', GHOST: 'rgba(255, 255, 255, 0.18)'
+    O: '#ff6600', S: '#00c3c3', Z: '#cc0000', J: '#c3c300', L: '#b300b3', I: '#00b300', T: '#0000cc', G: '#6b6b6b', GHOST: 'rgba(255, 255, 255, 0.18)'
   },
   BASE_SHAPES: {
     O: [[1,1], [1,1]],

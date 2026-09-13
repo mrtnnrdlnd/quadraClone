@@ -1,4 +1,5 @@
 window.game = new QuadraEngine();
+if (typeof NetManager !== 'undefined') { window.net = new NetManager(window.game); if (window.game) window.game.net = window.net; }
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_MAX_SCALE = 2;
 
