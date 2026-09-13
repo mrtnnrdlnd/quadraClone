@@ -504,7 +504,7 @@ input[type=range] {
   display: none; /* block preview removed */
 }
 
-@media (max-width: 768px) {
+@media (orientation: portrait) {
   body {
     justify-content: flex-start;
     padding-top: 2px;
@@ -532,6 +532,7 @@ input[type=range] {
 
   .mobile-slider {
     display: flex;
+    position: absolute;
   }
 
   .bottom-stats {
@@ -566,5 +567,25 @@ input[type=range] {
     width: auto;
     height: auto;
     font-size: 12px;
+  }
+}
+
+/* --- LANDSKAPSLÄGE (både skrivbord och telefon) ---
+   Landskapsläget är nu samma layout som "skrivbordsläget": sidopanelerna med
+   antal tappade block och antal rensade rader visas som vanligt, vi bara
+   lägger till touch-kontrollerna (rotation till vänster om brädet, slider
+   till höger om brädet) för skärmar/enheter i landskapsorientering. */
+@media (orientation: landscape) {
+  .mobile-rot-side {
+    display: flex;
+  }
+
+  .mobile-slider {
+    display: flex;
+    align-items: center;
+    width: 240px;
+    max-width: 240px;
+    margin: 0;
+    padding: 0;
   }
 }

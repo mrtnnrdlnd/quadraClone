@@ -1,6 +1,17 @@
 window.game = new QuadraEngine();
-const MOBILE_BREAKPOINT = 768;
 const MOBILE_MAX_SCALE = 2;
+
+// The layout is split purely by orientation now: landscape (phone or desktop) always
+// shows the side panels plus the rotate/slider touch controls, portrait shows a
+// compact touch-only layout. Together these two cover every possible viewport, so
+// there's no longer a third "no touch controls" in-between state.
+function isLandscapeTouch() {
+  return window.matchMedia('(orientation: landscape)').matches;
+}
+
+function isPortraitTouch() {
+  return window.matchMedia('(orientation: portrait)').matches;
+}
 
 function getViewportSize() {
   const vv = window.visualViewport;
@@ -31,8 +42,9 @@ function resizeGame() {
   const board = document.getElementById('board');
   const sliderTrack = document.getElementById('slider-track');
   const mobileSlider = document.querySelector('.mobile-slider');
+  const isPortrait = isPortraitTouch();
 
-  if (sliderTrack && board && vw <= MOBILE_BREAKPOINT) {
+  if (sliderTrack && board && isPortrait) {
     // Use board's bounding rect (natural coords while transform is removed) so width/left
     // are consistent when aligning the slider and stats
     const wrapperRect = wrapper.getBoundingClientRect();
@@ -41,12 +53,15 @@ function resizeGame() {
     const leftRelativeToWrapper = Math.max(0, Math.round(boardRect.left - wrapperRect.left));
 
     if (mobileSlider) {
-      // Keep the slider in normal flow (so it's included in wrapper.offsetHeight) but
-      // align it precisely under the board by using align-self + margin-left
-      mobileSlider.style.alignSelf = 'flex-start';
-      mobileSlider.style.marginLeft = `${leftRelativeToWrapper}px`;
+      // The slider now lives inside .quadra-layout (next to the board) so it can also sit
+      // beside the board in landscape mode. In portrait we pull it out of that row with
+      // absolute positioning and place it precisely below the board instead.
+      mobileSlider.style.position = 'absolute';
+      mobileSlider.style.left = `${leftRelativeToWrapper}px`;
+      mobileSlider.style.top = `${Math.round(boardRect.bottom - wrapperRect.top)}px`;
       mobileSlider.style.width = `${boardNaturalWidth}px`;
       mobileSlider.style.maxWidth = 'none';
+      mobileSlider.style.margin = '0';
       mobileSlider.style.display = '';
 
       // Make the inner track span the full width of the container
@@ -80,14 +95,18 @@ function resizeGame() {
       bottomStats.style.width = '';
     }
   } else {
-    // Restore to stylesheet defaults on larger screens
+    // Restore to stylesheet defaults (desktop, or landscape touch layout via CSS media query)
     if (sliderTrack) {
       sliderTrack.style.width = '';
       sliderTrack.style.maxWidth = '';
     }
     if (mobileSlider) {
+      mobileSlider.style.position = '';
+      mobileSlider.style.top = '';
+      mobileSlider.style.left = '';
       mobileSlider.style.alignSelf = '';
       mobileSlider.style.marginLeft = '';
+      mobileSlider.style.margin = '';
       mobileSlider.style.width = '';
       mobileSlider.style.maxWidth = '';
       mobileSlider.style.display = '';
@@ -100,17 +119,28 @@ function resizeGame() {
       bottomStats.style.top = '';
       bottomStats.style.margin = '';
       bottomStats.style.display = '';
+      bottomStats.style.flexDirection = '';
+      bottomStats.style.alignItems = '';
+      bottomStats.style.zIndex = '';
+      bottomStats.style.width = '';
     }
   }
 
-  // offsetWidth/offsetHeight measure layout size (not affected by transform)
+  // offsetWidth/offsetHeight measure layout size (not affected by transform). In portrait
+  // mode the slider is absolutely positioned below the board (out of normal flow), so we
+  // extend the measured natural height to make sure it's still accounted for when scaling.
   const naturalWidth = wrapper.offsetWidth || 250; // fall back to prior assumed sizes
-  const naturalHeight = wrapper.offsetHeight || 700;
+  let naturalHeight = wrapper.offsetHeight || 700;
+  if (isPortrait && mobileSlider) {
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const sliderRect = mobileSlider.getBoundingClientRect();
+    naturalHeight = Math.max(naturalHeight, Math.round(sliderRect.bottom - wrapperRect.top));
+  }
 
   // Compute a scale that fits the visual viewport while keeping aspect ratio.
   // On mobile we also allow upscaling so the game can fill more of the screen.
   const fitScale = Math.min(vw / naturalWidth, vh / naturalHeight);
-  const maxScale = vw <= MOBILE_BREAKPOINT ? MOBILE_MAX_SCALE : 1;
+  const maxScale = (isPortrait || isLandscapeTouch()) ? MOBILE_MAX_SCALE : 1;
   const scale = Math.max(0.1, Math.min(maxScale, fitScale));
 
   // Apply the new scale
