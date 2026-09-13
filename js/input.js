@@ -76,25 +76,39 @@ class InputManager {
     if (!piece) return null;
 
     const matrix = PRECALC_ROTATIONS[piece.type][piece.rot];
-    let minC = matrix[0].length;
-    let maxC = 0;
-
-    for (let r = 0; r < matrix.length; r++) {
-      for (let c = 0; c < matrix[r].length; c++) {
-        if (matrix[r][c] !== 0) {
-          if (c < minC) minC = c;
-          if (c > maxC) maxC = c;
-        }
-      }
-    }
+    const { minC, maxC } = this.engine.renderer.getMatrixBounds(matrix);
 
     const allowedMin = -minC;
     const allowedMax = CONFIG.COLS - 1 - maxC;
     return {
+      minC,
+      maxC,
       allowedMin,
       allowedMax,
       range: Math.max(0, allowedMax - allowedMin)
     };
+  }
+
+  // Move the current piece horizontally, one column at a time, until it reaches targetX
+  // (or gets blocked). Used by both the slider and touch-drag column snapping.
+  moveCurrentToColumn(targetX) {
+    const cur = this.engine.state.current;
+    if (!cur) return;
+    let safety = 0;
+    while (cur.x < targetX && safety < 12) {
+      const prevX = cur.x;
+      this.engine.action('right');
+      if (cur.x === prevX) break;
+      safety++;
+    }
+    safety = 0;
+    while (cur.x > targetX && safety < 12) {
+      const prevX = cur.x;
+      this.engine.action('left');
+      if (cur.x === prevX) break;
+      safety++;
+    }
+    if (this.syncSliderThumb) this.syncSliderThumb();
   }
 
   setSliderVisual(columnIndex, metrics = this.getCurrentPieceXRange()) {
@@ -123,18 +137,8 @@ class InputManager {
 
       // If we have a current piece, align thumb to the piece center across board columns
       if (this.engine && this.engine.state && this.engine.state.current && metrics) {
-        const cur = this.engine.state.current;
-        // Determine min/max matrix columns for the current rotation
-        const matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
-        let minMc = matrix[0].length, maxMc = 0;
-        for (let r = 0; r < matrix.length; r++) {
-          for (let c = 0; c < matrix[r].length; c++) {
-            if (matrix[r][c] !== 0) {
-              if (c < minMc) minMc = c;
-              if (c > maxMc) maxMc = c;
-            }
-          }
-        }
+        // Matrix column bounds for the current rotation (already computed in metrics)
+        const minMc = metrics.minC, maxMc = metrics.maxC;
         // board column indices for left and right edges
         let boardLeft = clampedColumn + minMc;
         let boardRight = clampedColumn + maxMc;
@@ -429,17 +433,8 @@ class InputManager {
         const metrics = this.getCurrentPieceXRange();
         if (!metrics || !cur) return;
 
-        // Find piece matrix horizontal bounds for current rotation
-        const matrix = PRECALC_ROTATIONS[cur.type][cur.rot];
-        let minMc = matrix[0].length, maxMc = 0;
-        for (let r = 0; r < matrix.length; r++) {
-          for (let c = 0; c < matrix[r].length; c++) {
-            if (matrix[r][c] !== 0) {
-              if (c < minMc) minMc = c;
-              if (c > maxMc) maxMc = c;
-            }
-          }
-        }
+        // Piece matrix horizontal bounds for current rotation (already computed in metrics)
+        const minMc = metrics.minC, maxMc = metrics.maxC;
 
         // Now interpret the slider input as the desired board column for the piece's center
         // Compute center offset of the piece's occupied cells (may be fractional)
@@ -448,27 +443,7 @@ class InputManager {
         // Clamp to allowed piece x range
         const clampedPieceX = Math.max(metrics.allowedMin, Math.min(metrics.allowedMax, targetPieceX));
 
-        const moveCurrentToColumn = (targetX) => {
-          const cur = this.engine.state.current;
-          if (!cur) return;
-          let safety = 0;
-          while (cur.x < targetX && safety < 12) {
-            const prevX = cur.x;
-            this.engine.action('right');
-            if (cur.x === prevX) break;
-            safety++;
-          }
-          safety = 0;
-          while (cur.x > targetX && safety < 12) {
-            const prevX = cur.x;
-            this.engine.action('left');
-            if (cur.x === prevX) break;
-            safety++;
-          }
-          if (this.syncSliderThumb) this.syncSliderThumb();
-        };
-
-        moveCurrentToColumn(clampedPieceX);
+        this.moveCurrentToColumn(clampedPieceX);
         // update visual based on piece x
         this.setSliderVisual(clampedPieceX, metrics);
       };
@@ -512,160 +487,6 @@ class InputManager {
       this.sliderTrack.addEventListener('touchend', endHandler, { passive: false });
       this.sliderTrack.addEventListener('touchcancel', endHandler, { passive: false });
     }
-
-    // Board gestures: tap = rotateCW, double-tap = rotate180, swipe down = hardDrop,
-    // horizontal drag/swipe = quick move (snap to column), long-press = softDrop
-    // Intentionally disabled: do not attach touch handlers on the board (no tap gestures anywhere)
-    const board = document.getElementById('board');
-    if (board && false) {
-      let boardTouchId = null;
-      let touchStartX = 0;
-      let touchStartY = 0;
-      let touchStartTime = 0;
-      let longPressTimer = null;
-      let moved = false;
-
-      const getTouchById = (touchList, id) => Array.from(touchList).find(t => t.identifier === id) || null;
-
-      board.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        if (this.engine.state.paused || this.engine.state.gameOver) return;
-        if (e.touches.length > 1) {
-          // ignore multi-touch on the board (allow system gestures)
-          return;
-        }
-        const touch = e.changedTouches[0];
-        if (!touch) return;
-        boardTouchId = touch.identifier;
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-        touchStartTime = Date.now();
-        moved = false;
-        longPressTimer = setTimeout(() => {
-          this.state.active.softDrop = true;
-          this.triggerHaptic(6);
-        }, 300);
-      }, { passive: false });
-
-      board.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        if (boardTouchId === null) return;
-        const t = getTouchById(e.touches, boardTouchId);
-        if (!t) return;
-        const dx = t.clientX - touchStartX;
-        const dy = t.clientY - touchStartY;
-        if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
-          moved = true;
-          if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-        }
-        // horizontal drag -> snap move
-        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
-          const rect = board.getBoundingClientRect();
-          const col = this.getColumnFromClientX(t.clientX, rect);
-          if (col !== null) {
-            const moveCurrentToColumn = (targetX) => {
-              const cur = this.engine.state.current;
-              if (!cur) return;
-              let safety = 0;
-              while (cur.x < targetX && safety < 12) {
-                const prevX = cur.x;
-                this.engine.action('right');
-                if (cur.x === prevX) break;
-                safety++;
-              }
-              safety = 0;
-              while (cur.x > targetX && safety < 12) {
-                const prevX = cur.x;
-                this.engine.action('left');
-                if (cur.x === prevX) break;
-                safety++;
-              }
-              if (this.syncSliderThumb) this.syncSliderThumb();
-            };
-            moveCurrentToColumn(col);
-          }
-        }
-      }, { passive: false });
-
-      board.addEventListener('touchend', (e) => {
-        if (boardTouchId === null) return;
-        const ended = Array.from(e.changedTouches).find(t => t.identifier === boardTouchId);
-        if (!ended) return;
-        e.preventDefault();
-        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-        // stop soft drop if it was started
-        this.state.active.softDrop = false;
-
-        const dt = Date.now() - touchStartTime;
-        const dx = ended.clientX - touchStartX;
-        const dy = ended.clientY - touchStartY;
-        const movedDistance = Math.hypot(dx, dy);
-
-        const now = Date.now();
-        if (!moved && dt <= 250 && movedDistance <= 30) {
-          if (this._lastBoardTap && now - this._lastBoardTap <= 350) {
-            this.engine.action('rotate180');
-            this._lastBoardTap = 0;
-            this.triggerHaptic(16);
-          } else {
-            this.engine.action('rotateCW');
-            this._lastBoardTap = now;
-            this.triggerHaptic(6);
-          }
-        } else if (Math.abs(dy) > 60 && dy > 0) {
-          // quick swipe down = hard drop
-          this.engine.action('hardDrop');
-          this.triggerHaptic(18);
-        } else if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
-          // ended after horizontal drag -> snap to final column
-          const rect = board.getBoundingClientRect();
-          const col = this.getColumnFromClientX(ended.clientX, rect);
-          if (col !== null) {
-            const moveCurrentToColumn = (targetX) => {
-              const cur = this.engine.state.current;
-              if (!cur) return;
-              let safety = 0;
-              while (cur.x < targetX && safety < 12) {
-                const prevX = cur.x;
-                this.engine.action('right');
-                if (cur.x === prevX) break;
-                safety++;
-              }
-              safety = 0;
-              while (cur.x > targetX && safety < 12) {
-                const prevX = cur.x;
-                this.engine.action('left');
-                if (cur.x === prevX) break;
-                safety++;
-              }
-              if (this.syncSliderThumb) this.syncSliderThumb();
-            };
-            moveCurrentToColumn(col);
-          }
-        }
-
-        boardTouchId = null;
-      }, { passive: false });
-
-      board.addEventListener('touchcancel', (e) => {
-        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-        this.state.active.softDrop = false;
-        boardTouchId = null;
-      }, { passive: false });
-    }
-  }
-
-  // Helper used for board/slider logic (kept public because it's used inline in a couple of places above)
-  getColumnFromClientX(clientX, rect) {
-    // Guard against engine/state not being initialized yet
-    if (!this.engine || !this.engine.state || !this.engine.state.current) return null;
-    const metrics = this.getCurrentPieceXRange(this.engine.state.current);
-    if (!metrics) return null;
-    let touchX = clientX - rect.left;
-    touchX = Math.max(0, Math.min(touchX, rect.width));
-    const percentNormalized = rect.width <= 0 ? 0.5 : (touchX / rect.width);
-    const columnIndex = metrics.range <= 0 ? metrics.allowedMin : Math.round(metrics.allowedMin + percentNormalized * metrics.range);
-    return Math.max(metrics.allowedMin, Math.min(columnIndex, metrics.allowedMax));
   }
 
   // Update the small previews on the mobile rotation/orientation buttons

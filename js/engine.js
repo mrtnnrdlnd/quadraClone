@@ -4,8 +4,6 @@ class QuadraEngine {
     // User-configurable options (loaded later will override these)
     this.cfg = { baseGravity: 1, softDropSpeed: 20, das: 150, arr: 30, controlMode: 'rotation', hapticStrength: 100 };
 
-
-
     this.stats = {
       pieces: { O:0, I:0, Z:0, J:0, L:0, S:0, T:0, Total:0 },
       clears: { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0, 13:0, 14:0, more:0, Total:0 }
@@ -269,22 +267,7 @@ class QuadraEngine {
     this.renderer.showGameOver(this.state.score, this.state.lines, this.state.level, this.state.gameTimeMs, this.stats.pieces.Total);
   }
 
-  // Try to rotate current piece by a delta (1=cw, 3=ccw, 2=180). Returns true if rotation applied.
-  applyRotationDelta(delta) {
-    if (!this.state.current) return false;
-    const cur = this.state.current;
-    const nRot = (cur.rot + delta) % 4;
-    for (let k of CONFIG.KICKS) {
-      if (!this.checkCollision(cur.x + k.x, cur.y + k.y, nRot)) {
-        cur.rot = nRot; cur.x += k.x; cur.y += k.y;
-        this.updateGhostY();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Try to rotate current piece to an absolute rotation (0..3). Returns true if applied.
+  // Try to rotate current piece to an absolute rotation (0..3), applying wall kicks. Returns true if applied.
   tryRotateTo(nRot) {
     if (!this.state.current) return false;
     const cur = this.state.current;
@@ -296,6 +279,13 @@ class QuadraEngine {
       }
     }
     return false;
+  }
+
+  // Try to rotate current piece by a delta (1=cw, 3=ccw, 2=180). Returns true if rotation applied.
+  applyRotationDelta(delta) {
+    if (!this.state.current) return false;
+    const nRot = (this.state.current.rot + delta) % 4;
+    return this.tryRotateTo(nRot);
   }
 
   action(type) {

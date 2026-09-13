@@ -18,6 +18,20 @@ class Renderer {
     if (edges.right) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(px + size - 2, py, 2, size); }
   }
 
+  // Compute the bounding box (in matrix cell coordinates) of a piece's occupied cells
+  getMatrixBounds(matrix) {
+    let minR = matrix.length, maxR = 0, minC = matrix[0].length, maxC = 0;
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c] !== 0) {
+          minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+          minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+        }
+      }
+    }
+    return { minR, maxR, minC, maxC };
+  }
+
   drawMiniPieces() {
     const bs = CONFIG.BLOCK_SIZE;
     Object.keys(CONFIG.BASE_SHAPES).forEach(type => {
@@ -25,15 +39,7 @@ class Renderer {
       if (!cvs) return;
       const mCtx = cvs.getContext('2d');
       const matrix = CONFIG.BASE_SHAPES[type];
-      let minR = matrix.length, maxR = 0, minC = matrix[0].length, maxC = 0;
-      for (let r = 0; r < matrix.length; r++) {
-        for (let c = 0; c < matrix[r].length; c++) {
-          if (matrix[r][c] !== 0) {
-            minR = Math.min(minR, r); maxR = Math.max(maxR, r);
-            minC = Math.min(minC, c); maxC = Math.max(maxC, c);
-          }
-        }
-      }
+      const { minR, maxR, minC, maxC } = this.getMatrixBounds(matrix);
       cvs.width = (maxC - minC + 1) * bs;
       cvs.height = (maxR - minR + 1) * bs;
       for (let r = 0; r < matrix.length; r++) {
@@ -104,15 +110,7 @@ class Renderer {
     if (!matrix) return;
 
     // Compute bounding box of occupied cells
-    let minR = matrix.length, maxR = 0, minC = matrix[0].length, maxC = 0;
-    for (let r = 0; r < matrix.length; r++) {
-      for (let c = 0; c < matrix[r].length; c++) {
-        if (matrix[r][c] !== 0) {
-          minR = Math.min(minR, r); maxR = Math.max(maxR, r);
-          minC = Math.min(minC, c); maxC = Math.max(maxC, c);
-        }
-      }
-    }
+    const { minR, maxR, minC, maxC } = this.getMatrixBounds(matrix);
     const cols = Math.max(1, maxC - minC + 1);
     const rows = Math.max(1, maxR - minR + 1);
 
@@ -205,15 +203,7 @@ class Renderer {
     state.nextQueue.forEach((piece, index) => {
       const matrix = PRECALC_ROTATIONS[piece.type][0];
       const bSize = sizes[index];
-      let minR = matrix.length, maxR = 0, minC = matrix[0].length, maxC = 0;
-      for (let r = 0; r < matrix.length; r++) {
-        for (let c = 0; c < matrix[r].length; c++) {
-          if (matrix[r][c] !== 0) {
-            minR = Math.min(minR, r); maxR = Math.max(maxR, r);
-            minC = Math.min(minC, c); maxC = Math.max(maxC, c);
-          }
-        }
-      }
+      const { minR, maxR, minC, maxC } = this.getMatrixBounds(matrix);
       const pieceWidth = (maxC - minC + 1) * bSize;
       const pieceHeight = (maxR - minR + 1) * bSize;
       const ox = xCenters[index] - pieceWidth / 2;

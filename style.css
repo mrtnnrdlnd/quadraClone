@@ -113,8 +113,6 @@ canvas#board {
   width: 80px;
 }
 
-.mini-canvas {}
-
 .settings-btn {
   background: #000;
   border: 1px solid #00e5ff;
