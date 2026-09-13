@@ -515,8 +515,9 @@ class InputManager {
 
     // Board gestures: tap = rotateCW, double-tap = rotate180, swipe down = hardDrop,
     // horizontal drag/swipe = quick move (snap to column), long-press = softDrop
+    // Intentionally disabled: do not attach touch handlers on the board (no tap gestures anywhere)
     const board = document.getElementById('board');
-    if (board) {
+    if (board && false) {
       let boardTouchId = null;
       let touchStartX = 0;
       let touchStartY = 0;
