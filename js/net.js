@@ -12,6 +12,9 @@ class NetManager {
 
     this._ensureQRLibsPromise = null;
     this._createUI();
+    // If the page was opened via a link containing a signal (e.g. from a scanned QR),
+    // detect and prefill the remote signal so the user can quickly create an answer.
+    try { this._checkUrlForSignal(); } catch (e) {}
   }
 
   _createUI() {
@@ -328,27 +331,40 @@ class NetManager {
     // clear previous
     this.ui.localQR.innerHTML = '';
 
-    // compress for QR if possible (we keep the full JSON in the textarea for copy/paste)
-    let qrText = text;
-    try { if (window.LZString) qrText = 'lz:' + LZString.compressToBase64(text); } catch (e) {}
+    // Build a shareable URL containing the compressed signal (URL-safe)
+    let encoded = '';
+    try {
+      if (window.LZString && typeof LZString.compressToEncodedURIComponent === 'function') {
+        encoded = LZString.compressToEncodedURIComponent(text);
+      } else {
+        encoded = encodeURIComponent(text);
+      }
+    } catch (e) {
+      encoded = encodeURIComponent(text);
+    }
+
+    const baseUrl = (window.location && window.location.origin) ? (window.location.origin + window.location.pathname) : window.location.href;
+    const link = `${baseUrl}#sig=${encoded}`;
 
     try {
       if (window.QRCode) {
-        // QRCode(element, options) - qrcodejs
-        new QRCode(this.ui.localQR, { text: qrText, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(this.ui.localQR, { text: link, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
       } else if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
-        // fallback for other libs
-        await window.QRCode.toCanvas(this.ui.localQR, qrText, { width: 220 });
+        await window.QRCode.toCanvas(this.ui.localQR, link, { width: 220 });
       } else {
-        // Fallback: show text inside box
-        const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = qrText.substring(0, 800);
+        const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = link.substring(0, 800);
         this.ui.localQR.appendChild(pre);
       }
     } catch (e) {
-      // If generation fails, fallback to showing text
-      const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = qrText.substring(0, 800);
+      const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = link.substring(0, 800);
       this.ui.localQR.appendChild(pre);
     }
+
+    // show clickable link below the QR for direct sharing
+    try {
+      const a = document.createElement('a'); a.href = link; a.innerText = link; a.style.display = 'block'; a.style.color = '#000'; a.style.wordBreak = 'break-all'; a.style.marginTop = '8px';
+      this.ui.localQR.appendChild(a);
+    } catch (e) {}
   }
 
   async _toggleShowQR() {
@@ -356,6 +372,15 @@ class NetManager {
     const text = this.ui.localSignal.value || '';
     if (!text) { this._setStatus('No local signal to show'); return; }
     await this._ensureQRLibs();
+
+    // Build a URL containing the compressed signal so scanned phones open a clickable link
+    let encoded = '';
+    try {
+      if (window.LZString && typeof LZString.compressToEncodedURIComponent === 'function') encoded = LZString.compressToEncodedURIComponent(text);
+      else encoded = encodeURIComponent(text);
+    } catch (e) { encoded = encodeURIComponent(text); }
+    const baseUrl = (window.location && window.location.origin) ? (window.location.origin + window.location.pathname) : window.location.href;
+    const link = `${baseUrl}#sig=${encoded}`;
 
     // Build full-screen overlay with large QR for easier scanning
     const overlay = document.createElement('div');
@@ -368,7 +393,7 @@ class NetManager {
     const qrWrapper = document.createElement('div'); qrWrapper.style.display = 'inline-block'; qrWrapper.style.background = '#fff'; qrWrapper.style.padding = '6px'; qrWrapper.style.borderRadius = '8px';
     const qrEl = document.createElement('div'); qrWrapper.appendChild(qrEl);
 
-    const rawBox = document.createElement('textarea'); rawBox.readOnly = true; rawBox.style.width = '100%'; rawBox.style.height = '120px'; rawBox.style.marginTop = '12px'; rawBox.style.fontSize = '11px'; rawBox.value = text;
+    const rawBox = document.createElement('textarea'); rawBox.readOnly = true; rawBox.style.width = '100%'; rawBox.style.height = '120px'; rawBox.style.marginTop = '12px'; rawBox.style.fontSize = '11px'; rawBox.value = link;
 
     const closeBtn = document.createElement('button'); closeBtn.innerText = 'Close'; closeBtn.style.marginTop = '12px'; closeBtn.style.padding = '8px 12px'; closeBtn.style.borderRadius = '6px';
 
@@ -377,25 +402,63 @@ class NetManager {
     document.body.appendChild(overlay);
 
     const size = Math.min(Math.floor(window.innerWidth * 0.8), Math.floor(window.innerHeight * 0.6), 640);
-    let qrText = text;
-    try { if (window.LZString) qrText = 'lz:' + LZString.compressToBase64(text); } catch (e) {}
     try {
       if (window.QRCode) {
-        new QRCode(qrEl, { text: qrText, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(qrEl, { text: link, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
       } else if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
-        await window.QRCode.toCanvas(qrEl, qrText, { width: size });
+        await window.QRCode.toCanvas(qrEl, link, { width: size });
       } else {
-        const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '600px'; pre.innerText = qrText.substring(0, 2000);
+        const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '600px'; pre.innerText = link.substring(0, 2000);
         qrEl.appendChild(pre);
       }
     } catch (e) {
-      const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '600px'; pre.innerText = qrText.substring(0, 2000);
+      const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '600px'; pre.innerText = link.substring(0, 2000);
       qrEl.appendChild(pre);
     }
 
     const cleanup = () => { try { overlay.remove(); } catch (e) {} };
     closeBtn.addEventListener('click', cleanup);
     overlay.addEventListener('click', (ev) => { if (ev.target === overlay) cleanup(); });
+  }
+
+  async _checkUrlForSignal() {
+    // If the page was opened with a #sig= or ?sig= parameter, decode it and prefill the remote signal
+    try {
+      const u = new URL(window.location.href);
+      let encoded = null;
+      if (u.hash) {
+        const hp = new URLSearchParams(u.hash.replace(/^#/, ''));
+        encoded = hp.get('sig') || hp.get('signal') || null;
+      }
+      if (!encoded) encoded = u.searchParams.get('sig') || u.searchParams.get('signal') || null;
+      if (!encoded) return;
+
+      // ensure decompression library is available
+      await this._ensureQRLibs();
+
+      let decoded = encoded;
+      try {
+        if (typeof decoded === 'string' && decoded.startsWith('lz:') && window.LZString) {
+          decoded = LZString.decompressFromBase64(decoded.substring(3)) || decoded;
+        } else if (window.LZString && typeof LZString.decompressFromEncodedURIComponent === 'function') {
+          decoded = LZString.decompressFromEncodedURIComponent(decoded) || decoded;
+        } else {
+          decoded = decodeURIComponent(decoded);
+        }
+      } catch (e) {
+        try { decoded = decodeURIComponent(decoded); } catch (ex) { /* fall back to raw */ }
+      }
+
+      if (this.ui && this.ui.remoteSignal) {
+        this.ui.remoteSignal.value = decoded;
+        this._setStatus('Remote signal loaded from link. Click Create Answer.');
+      }
+
+      // Remove the signal from the URL so it isn't re-processed on reload
+      try { history.replaceState(null, '', u.origin + u.pathname + u.search); } catch (e) {}
+    } catch (e) {
+      // ignore parse errors
+    }
   }
 
   async _startScan() {
@@ -457,16 +520,54 @@ class NetManager {
               const code = window.jsQR(imageData.data, imageData.width, imageData.height);
               if (code && code.data) {
                 // Found QR code
-                let decoded = code.data;
+                let payload = (typeof code.data === 'string') ? code.data.trim() : code.data;
+                let decoded = null;
+
+                // If the payload is a URL, try to extract the 'sig' parameter from search or hash
+                let extracted = null;
                 try {
-                  if (typeof decoded === 'string' && decoded.startsWith('lz:') && window.LZString) {
-                    decoded = LZString.decompressFromBase64(decoded.substring(3)) || decoded;
+                  if (/^https?:\/\//i.test(payload)) {
+                    try {
+                      const parsed = new URL(payload);
+                      if (parsed.searchParams) {
+                        extracted = parsed.searchParams.get('sig') || parsed.searchParams.get('signal') || null;
+                      }
+                      if (!extracted && parsed.hash) {
+                        const hp = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+                        extracted = hp.get('sig') || hp.get('signal') || null;
+                      }
+                    } catch (uerr) { /* ignore */ }
                   }
-                } catch (de) { console.warn('QR decompress failed', de); }
+                } catch (u) {}
+
+                try {
+                  if (extracted) {
+                    // decompress encodedURIComponent form
+                    if (window.LZString && typeof LZString.decompressFromEncodedURIComponent === 'function') {
+                      decoded = LZString.decompressFromEncodedURIComponent(extracted) || extracted;
+                    } else {
+                      decoded = decodeURIComponent(extracted);
+                    }
+                  } else {
+                    // Not a URL with sig: handle direct payloads
+                    if (typeof payload === 'string' && payload.startsWith('lz:') && window.LZString) {
+                      decoded = LZString.decompressFromBase64(payload.substring(3)) || payload;
+                    } else if (window.LZString && typeof LZString.decompressFromEncodedURIComponent === 'function') {
+                      const tryDec = LZString.decompressFromEncodedURIComponent(payload);
+                      decoded = tryDec || payload;
+                    } else {
+                      // Fallback: try decodeURIComponent then assume it's JSON/text
+                      try { decoded = decodeURIComponent(payload); } catch (e) { decoded = payload; }
+                    }
+                  }
+                } catch (de) {
+                  console.warn('QR decompress failed', de);
+                  decoded = payload;
+                }
+
                 if (this.ui && this.ui.remoteSignal) this.ui.remoteSignal.value = decoded;
-                this._setStatus('QR decoded');
-                // Auto apply
-                try { this._onApplyRemote(); } catch (e) {}
+                this._setStatus('QR decoded; remote signal filled (click Create Answer)');
+                // Do not auto-apply remote to give user control; they can click Create Answer.
                 cleanup();
                 return;
               }
