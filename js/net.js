@@ -298,8 +298,6 @@ class NetManager {
       if (!window.QRCode) libs.push('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js');
       // jsQR (decoder) - used for scanning
       if (!window.jsQR) libs.push('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js');
-      // lz-string for compressing large SDPs so QR fits
-      if (!window.LZString) libs.push('https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js');
 
       if (libs.length === 0) return resolve(true);
 
@@ -319,83 +317,41 @@ class NetManager {
     if (!this.ui) return;
     const text = this.ui.localSignal.value || '';
     if (!text) {
-      if (this.ui.localQRContainer) this.ui.localQRContainer.style.display = 'none';
+      this.ui.localQRContainer.style.display = 'none';
       return;
     }
     // ensure libs loaded
     await this._ensureQRLibs();
-    if (this.ui.localQRContainer) this.ui.localQRContainer.style.display = '';
+    this.ui.localQRContainer.style.display = '';
     // clear previous
     this.ui.localQR.innerHTML = '';
-
-    // compress for QR if possible (we keep the full JSON in the textarea for copy/paste)
-    let qrText = text;
-    try { if (window.LZString) qrText = 'lz:' + LZString.compressToBase64(text); } catch (e) {}
-
     try {
       if (window.QRCode) {
         // QRCode(element, options) - qrcodejs
-        new QRCode(this.ui.localQR, { text: qrText, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(this.ui.localQR, { text: text, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
       } else if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
         // fallback for other libs
-        await window.QRCode.toCanvas(this.ui.localQR, qrText, { width: 220 });
+        await window.QRCode.toCanvas(this.ui.localQR, text, { width: 220 });
       } else {
         // Fallback: show text inside box
-        const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = qrText.substring(0, 800);
+        const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = text.substring(0, 800);
         this.ui.localQR.appendChild(pre);
       }
     } catch (e) {
       // If generation fails, fallback to showing text
-      const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = qrText.substring(0, 800);
+      const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '200px'; pre.innerText = text.substring(0, 800);
       this.ui.localQR.appendChild(pre);
     }
   }
 
-  async _toggleShowQR() {
+  _toggleShowQR() {
     if (!this.ui) return;
-    const text = this.ui.localSignal.value || '';
-    if (!text) { this._setStatus('No local signal to show'); return; }
-    await this._ensureQRLibs();
-
-    // Build full-screen overlay with large QR for easier scanning
-    const overlay = document.createElement('div');
-    overlay.style.position = 'fixed'; overlay.style.left = '0'; overlay.style.top = '0'; overlay.style.right = '0'; overlay.style.bottom = '0';
-    overlay.style.background = 'rgba(0,0,0,0.85)'; overlay.style.zIndex = '200001'; overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
-
-    const box = document.createElement('div'); box.style.background = '#fff'; box.style.padding = '18px'; box.style.borderRadius = '10px'; box.style.maxWidth = '92%'; box.style.maxHeight = '92%'; box.style.overflow = 'auto'; box.style.textAlign = 'center';
-
-    const title = document.createElement('div'); title.innerText = 'Scan this on the other device (open game and tap Scan Remote QR)'; title.style.marginBottom = '10px'; title.style.color = '#111'; title.style.fontSize = '14px';
-    const qrWrapper = document.createElement('div'); qrWrapper.style.display = 'inline-block'; qrWrapper.style.background = '#fff'; qrWrapper.style.padding = '6px'; qrWrapper.style.borderRadius = '8px';
-    const qrEl = document.createElement('div'); qrWrapper.appendChild(qrEl);
-
-    const rawBox = document.createElement('textarea'); rawBox.readOnly = true; rawBox.style.width = '100%'; rawBox.style.height = '120px'; rawBox.style.marginTop = '12px'; rawBox.style.fontSize = '11px'; rawBox.value = text;
-
-    const closeBtn = document.createElement('button'); closeBtn.innerText = 'Close'; closeBtn.style.marginTop = '12px'; closeBtn.style.padding = '8px 12px'; closeBtn.style.borderRadius = '6px';
-
-    box.appendChild(title); box.appendChild(qrWrapper); box.appendChild(rawBox); box.appendChild(closeBtn);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-
-    const size = Math.min(Math.floor(window.innerWidth * 0.8), Math.floor(window.innerHeight * 0.6), 640);
-    let qrText = text;
-    try { if (window.LZString) qrText = 'lz:' + LZString.compressToBase64(text); } catch (e) {}
-    try {
-      if (window.QRCode) {
-        new QRCode(qrEl, { text: qrText, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
-      } else if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
-        await window.QRCode.toCanvas(qrEl, qrText, { width: size });
-      } else {
-        const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '600px'; pre.innerText = qrText.substring(0, 2000);
-        qrEl.appendChild(pre);
-      }
-    } catch (e) {
-      const pre = document.createElement('pre'); pre.style.whiteSpace = 'normal'; pre.style.color = '#000'; pre.style.maxWidth = '600px'; pre.innerText = qrText.substring(0, 2000);
-      qrEl.appendChild(pre);
+    if (this.ui.localQRContainer.style.display === 'none' || this.ui.localQRContainer.style.display === '') {
+      // show
+      this._updateLocalQR();
+    } else {
+      this.ui.localQRContainer.style.display = 'none';
     }
-
-    const cleanup = () => { try { overlay.remove(); } catch (e) {} };
-    closeBtn.addEventListener('click', cleanup);
-    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) cleanup(); });
   }
 
   async _startScan() {
@@ -457,13 +413,7 @@ class NetManager {
               const code = window.jsQR(imageData.data, imageData.width, imageData.height);
               if (code && code.data) {
                 // Found QR code
-                let decoded = code.data;
-                try {
-                  if (typeof decoded === 'string' && decoded.startsWith('lz:') && window.LZString) {
-                    decoded = LZString.decompressFromBase64(decoded.substring(3)) || decoded;
-                  }
-                } catch (de) { console.warn('QR decompress failed', de); }
-                if (this.ui && this.ui.remoteSignal) this.ui.remoteSignal.value = decoded;
+                if (this.ui && this.ui.remoteSignal) this.ui.remoteSignal.value = code.data;
                 this._setStatus('QR decoded');
                 // Auto apply
                 try { this._onApplyRemote(); } catch (e) {}
