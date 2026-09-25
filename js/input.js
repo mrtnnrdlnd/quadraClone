@@ -421,13 +421,14 @@ class InputManager {
         this.lastPointerX = relX;
         const pct = Math.max(0, Math.min(1, rect.width <= 0 ? 0 : relX / rect.width));
 
-        // Map to board column (0..COLS-1) so each interval is one block
+        // Continuous column position under the pointer (0..boardCols), in column units.
+        // We intentionally avoid snapping this to a whole column before computing the
+        // piece target below: doing so previously forced an exact ".5" tie for every
+        // even-width piece (O, horizontal I), and JS's Math.round always resolves
+        // ".5" ties upward, so those pieces always ended up one column to the right
+        // of the touched position.
         const boardCols = Math.max(1, CONFIG.COLS);
-        // Map pointer to the nearest block center (centers at (i+0.5)/cols).
-        // Compute nearest center by subtracting 0.5 before flooring, then clamp to valid range.
-        let boardCol = Math.floor(pct * boardCols - 0.5);
-        if (boardCol < 0) boardCol = 0;
-        if (boardCol >= boardCols) boardCol = boardCols - 1;
+        const continuousCol = pct * boardCols;
 
         const cur = this.engine.state.current;
         const metrics = this.getCurrentPieceXRange();
@@ -436,10 +437,10 @@ class InputManager {
         // Piece matrix horizontal bounds for current rotation (already computed in metrics)
         const minMc = metrics.minC, maxMc = metrics.maxC;
 
-        // Now interpret the slider input as the desired board column for the piece's center
-        // Compute center offset of the piece's occupied cells (may be fractional)
-        const centerOffset = (minMc + maxMc) / 2; // e.g. for a 2-wide piece -> 0.5
-        let targetPieceX = Math.round(boardCol - centerOffset);
+        // Interpret the slider input as the desired board column for the piece's center.
+        // centerOffset is the piece footprint's center (in column-space) relative to its x.
+        const centerOffset = (minMc + maxMc + 1) / 2; // e.g. for a 2-wide piece -> 1
+        let targetPieceX = Math.round(continuousCol - centerOffset);
         // Clamp to allowed piece x range
         const clampedPieceX = Math.max(metrics.allowedMin, Math.min(metrics.allowedMax, targetPieceX));
 
