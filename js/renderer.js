@@ -63,9 +63,9 @@ class Renderer {
     this.ui.level.innerText = level;
   }
 
-  updateBPM(bpm) {
-    const el = document.getElementById('bpm');
-    if (el) el.innerText = bpm;
+  updateMaxClear(val) {
+    const el = document.getElementById('max-clear');
+    if (el) el.innerText = val;
   }
 
   updateStat(prefix, key, value) {

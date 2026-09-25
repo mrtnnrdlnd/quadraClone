@@ -6,7 +6,8 @@ class QuadraEngine {
 
     this.stats = {
       pieces: { O:0, I:0, Z:0, J:0, L:0, S:0, T:0, Total:0 },
-      clears: { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0, 13:0, 14:0, more:0, Total:0 }
+      clears: { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0, 13:0, 14:0, more:0, Total:0 },
+      maxClear: 0
     };
     this.state = {
       grid: Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(0)),
@@ -15,16 +16,17 @@ class QuadraEngine {
       isFlashing: false, flashTimer: 0, pendingRows: [],
       isCascading: false, fragments: [], combo: 1, cascadeLines: 0,
       gameTimeMs: 0,
-      softDropSuppressed: false,
-      placementTimestamps: []
+      softDropSuppressed: false
     };
     this.tempVisited = Array.from({ length: CONFIG.ROWS }, () => Array(CONFIG.COLS).fill(false));
     this.input = new InputManager(this);
     this.loadSettings();
     if (this.input && typeof this.input.setupMobileControls === 'function') this.input.setupMobileControls();
     this.renderer.drawMiniPieces();
-    for(let i=0; i<3; i++) this.state.nextQueue.push({ type: this.getBagPiece(), rot: 0 });
-    this.spawnNext();
+    if (!this.loadState()) {
+      for(let i=0; i<3; i++) this.state.nextQueue.push({ type: this.getBagPiece(), rot: 0 });
+      this.spawnNext();
+    }
     requestAnimationFrame(t => this.loop(t));
   }
 
@@ -40,6 +42,49 @@ class QuadraEngine {
   saveSettings() {
     localStorage.setItem('quadraSettings', JSON.stringify(this.input.keys));
     localStorage.setItem('quadraConfig', JSON.stringify(this.cfg));
+  }
+
+  saveState() {
+    if (this.state.gameOver) return;
+    try {
+      localStorage.setItem('quadra_save', JSON.stringify({ state: this.state, stats: this.stats }));
+    } catch (e) {
+      console.warn('Failed to save game state', e);
+    }
+  }
+
+  loadState() {
+    const saved = localStorage.getItem('quadra_save');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        this.state = parsed.state;
+        this.stats = parsed.stats;
+        
+        if (this.stats.maxClear === undefined) this.stats.maxClear = 0;
+        this.state.lastTime = 0;
+        this.state.softDropSuppressed = false;
+        
+        this.renderer.updateUI(this.state.score, this.state.lines, this.state.level);
+        if (this.renderer.updateMaxClear) this.renderer.updateMaxClear(this.stats.maxClear);
+        
+        for (let type in this.stats.pieces) {
+          if (type !== 'Total') this.renderer.updateStat('count', type, this.stats.pieces[type]);
+        }
+        this.renderer.updateStat('count', 'Total', this.stats.pieces.Total);
+        
+        for (let k in this.stats.clears) {
+          if (k !== 'Total' && k !== 'more') this.renderer.updateStat('lines', k, this.stats.clears[k]);
+        }
+        this.renderer.updateStat('lines', 'more', this.stats.clears.more);
+        this.renderer.updateStat('lines', 'Total', this.stats.clears.Total);
+        
+        return true;
+      } catch (e) {
+        console.warn('Failed to load save', e);
+      }
+    }
+    return false;
   }
 
   getDropInterval() {
@@ -60,16 +105,6 @@ class QuadraEngine {
       gy++;
     }
     this.state.current.ghostY = gy;
-  }
-
-  // Returns number of pieces placed in the last 60 seconds
-  getPiecesPerMinute() {
-    if (!this.state.placementTimestamps) this.state.placementTimestamps = [];
-    const now = Date.now();
-    const cutoff = now - 60000;
-    // keep timestamps within the last minute
-    this.state.placementTimestamps = this.state.placementTimestamps.filter(t => t >= cutoff);
-    return this.state.placementTimestamps.length;
   }
 
   spawnNext() {
@@ -103,6 +138,8 @@ class QuadraEngine {
 
       if (this.checkCollision(this.state.current.x, this.state.current.y, this.state.current.rot)) {
         this.triggerGameOver();
+      } else {
+        this.saveState();
       }
     }
 
@@ -137,9 +174,7 @@ class QuadraEngine {
       }
     }
 
-    // record timestamp for pieces-per-minute metric
-    if (!this.state.placementTimestamps) this.state.placementTimestamps = [];
-    this.state.placementTimestamps.push(Date.now());
+
 
     this.state.softDropSuppressed = true; // Spärra softdrop för nästa kloss
     this.state.current = null;
@@ -256,6 +291,12 @@ class QuadraEngine {
       }
       this.stats.clears.Total += t;
       this.renderer.updateStat('lines', 'Total', this.stats.clears.Total);
+      
+      if (t > this.stats.maxClear) {
+        this.stats.maxClear = t;
+        if (this.renderer.updateMaxClear) this.renderer.updateMaxClear(this.stats.maxClear);
+      }
+      
       this.state.cascadeLines = 0;
     }
     this.state.combo = 1;
@@ -264,6 +305,7 @@ class QuadraEngine {
 
   triggerGameOver() {
     this.state.gameOver = true;
+    localStorage.removeItem('quadra_save');
     this.renderer.showGameOver(this.state.score, this.state.lines, this.state.level, this.state.gameTimeMs, this.stats.pieces.Total);
   }
 
@@ -411,10 +453,7 @@ class QuadraEngine {
       }
     }
 
-    // Update live pieces-per-minute display (last 60s)
-    if (this.renderer && typeof this.renderer.updateBPM === 'function') {
-      this.renderer.updateBPM(this.getPiecesPerMinute());
-    }
+
   }
 
   loop(time) {
